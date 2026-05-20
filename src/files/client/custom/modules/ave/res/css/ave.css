@@ -1,0 +1,863 @@
+/* ============================================================
+   AVE Module — Estilos principales
+   Inspirado en el módulo Inventario (Century21 Venezuela)
+   ============================================================ */
+
+:root {
+    --ave-primary:       #B8A279;
+    --ave-primary-dark:  #9D8B5F;
+    --ave-primary-light: #D4C19C;
+    --ave-success:       #27ae60;
+    --ave-warning:       #f39c12;
+    --ave-danger:        #e74c3c;
+    --ave-gray:          #95a5a6;
+    --ave-dark:          #1A1A1A;
+    --ave-light:         #F5F5F5;
+    --ave-border:        #E6E6E6;
+    --ave-white:         #FFFFFF;
+    --ave-text:          #363438;
+    --ave-text-muted:    #666666;
+}
+
+/* ============================================================
+   Layout contenedor principal
+   ============================================================ */
+.ave-container {
+    padding: 28px;
+    background: var(--ave-light);
+    min-height: 100vh;
+}
+
+/* ============================================================
+   Page Header
+   ============================================================ */
+.ave-page-header {
+    background: var(--ave-white);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    border: 1px solid var(--ave-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.ave-header-left {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    flex: 1;
+}
+
+.ave-header-icon {
+    width: 56px;
+    height: 56px;
+    background: var(--ave-primary);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 26px;
+    flex-shrink: 0;
+}
+
+.ave-page-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--ave-dark);
+    margin: 0 0 4px 0;
+}
+
+.ave-page-subtitle {
+    color: var(--ave-text-muted);
+    font-size: 15px;
+    margin: 0;
+}
+
+.ave-header-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* ============================================================
+   Botones
+   ============================================================ */
+.ave-btn {
+    padding: 10px 20px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    text-decoration: none;
+}
+
+.ave-btn-primary {
+    background: var(--ave-primary);
+    color: white;
+}
+.ave-btn-primary:hover {
+    background: var(--ave-primary-dark);
+    color: white;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(184,162,121,0.3);
+}
+
+.ave-btn-secondary {
+    background: var(--ave-white);
+    color: var(--ave-text-muted);
+    border: 2px solid var(--ave-border);
+}
+.ave-btn-secondary:hover {
+    background: var(--ave-primary);
+    color: white;
+    border-color: var(--ave-primary);
+}
+
+.ave-btn-danger {
+    background: var(--ave-danger);
+    color: white;
+}
+.ave-btn-danger:hover {
+    background: #c0392b;
+    color: white;
+}
+
+.ave-btn-success {
+    background: var(--ave-success);
+    color: white;
+}
+.ave-btn-success:hover {
+    background: #229954;
+    color: white;
+}
+
+.ave-btn-sm {
+    padding: 5px 12px;
+    font-size: 12px;
+}
+
+/* ============================================================
+   Paneles colapsables (estilo inventario)
+   ============================================================ */
+.ave-panel {
+    background: var(--ave-white);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    border: 1px solid var(--ave-border);
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+}
+
+.ave-panel-heading {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid var(--ave-border);
+    padding: 15px 20px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    border-radius: 8px 8px 0 0;
+}
+
+.ave-panel-heading:hover {
+    background-color: #e9ecef;
+}
+
+.ave-panel-heading.active {
+    border-bottom: 2px solid var(--ave-primary);
+}
+
+.ave-panel-title {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--ave-text);
+    line-height: 1.2;
+}
+
+.ave-panel-title-text {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+
+.ave-panel-title-text i {
+    color: var(--ave-primary);
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.ave-panel-title-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-left: auto;
+    flex-shrink: 0;
+    background-color: #f8f9fa;
+    padding-left: 10px;
+    z-index: 1;
+}
+
+.ave-panel-heading.active .ave-panel-title-right {
+    background-color: #e9ecef;
+}
+
+.ave-panel-title .fa-chevron-down,
+.ave-panel-title .fa-chevron-up {
+    color: var(--ave-primary);
+    font-size: 14px;
+}
+
+.ave-panel-body {
+    padding: 24px;
+}
+
+/* ============================================================
+   Tabs de navegación principales
+   ============================================================ */
+.ave-tabs-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    background: var(--ave-white);
+    border-radius: 12px 12px 0 0;
+    padding: 12px 16px 0;
+    border: 1px solid var(--ave-border);
+    border-bottom: none;
+    margin-bottom: 0;
+    overflow-x: auto;
+}
+
+.ave-tab-btn {
+    padding: 10px 16px;
+    border: none;
+    background: transparent;
+    color: var(--ave-text-muted);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    border-radius: 4px 4px 0 0;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.ave-tab-btn:hover {
+    color: var(--ave-primary);
+    background: rgba(184,162,121,0.05);
+}
+
+.ave-tab-btn.active {
+    color: var(--ave-primary);
+    border-bottom-color: var(--ave-primary);
+    background: rgba(184,162,121,0.07);
+}
+
+.ave-tab-btn .tab-num {
+    background: var(--ave-border);
+    color: var(--ave-text-muted);
+    border-radius: 10px;
+    padding: 1px 7px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.ave-tab-btn.active .tab-num {
+    background: var(--ave-primary);
+    color: white;
+}
+
+.ave-tab-content {
+    background: var(--ave-white);
+    border: 1px solid var(--ave-border);
+    border-radius: 0 0 12px 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+}
+
+.ave-tab-pane {
+    display: none;
+}
+
+.ave-tab-pane.active {
+    display: block;
+}
+
+/* ============================================================
+   Formularios
+   ============================================================ */
+.ave-form-group {
+    margin-bottom: 18px;
+}
+
+.ave-form-label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: var(--ave-text);
+    font-size: 13px;
+}
+
+.ave-form-label.required::after {
+    content: ' *';
+    color: var(--ave-danger);
+}
+
+.ave-form-control {
+    width: 100%;
+    border: 2px solid var(--ave-border);
+    border-radius: 8px;
+    padding: 9px 13px;
+    font-size: 14px;
+    color: var(--ave-text);
+    transition: all 0.2s ease;
+    background: var(--ave-white);
+    box-sizing: border-box;
+}
+
+.ave-form-control:focus {
+    border-color: var(--ave-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(184,162,121,0.12);
+}
+
+.ave-form-control:disabled {
+    background: #f8f9fa;
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* Checkbox estilizado */
+.ave-checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0;
+}
+
+.ave-checkbox-wrapper input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: var(--ave-primary);
+}
+
+.ave-checkbox-label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ave-text);
+    cursor: pointer;
+}
+
+/* ============================================================
+   Tablas
+   ============================================================ */
+.ave-table-wrapper {
+    background: var(--ave-white);
+    border-radius: 10px;
+    overflow-x: auto;
+    border: 1px solid var(--ave-border);
+}
+
+.ave-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.ave-table thead {
+    background: linear-gradient(135deg, var(--ave-primary) 0%, var(--ave-primary-light) 100%);
+    color: white;
+}
+
+.ave-table thead th {
+    padding: 12px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.ave-table tbody tr {
+    border-bottom: 1px solid #F0F0F0;
+    transition: background 0.15s;
+}
+
+.ave-table tbody tr:hover {
+    background: rgba(184,162,121,0.04);
+}
+
+.ave-table tbody td {
+    padding: 11px 14px;
+    color: var(--ave-text);
+    vertical-align: middle;
+}
+
+/* Tabla con bordes (para referencias y FODA) */
+.ave-table-bordered {
+    border: 2px solid var(--ave-border);
+}
+.ave-table-bordered thead th,
+.ave-table-bordered tbody td {
+    border: 1px solid var(--ave-border);
+}
+
+/* ============================================================
+   Loading / Spinner
+   ============================================================ */
+.ave-loading {
+    text-align: center;
+    padding: 60px 20px;
+}
+
+.ave-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid var(--ave-border);
+    border-top-color: var(--ave-primary);
+    border-radius: 50%;
+    animation: ave-spin 1s linear infinite;
+    margin: 0 auto 16px;
+}
+
+.ave-spinner-sm {
+    width: 24px;
+    height: 24px;
+    border-width: 3px;
+    display: inline-block;
+}
+
+@keyframes ave-spin {
+    to { transform: rotate(360deg); }
+}
+
+.ave-loading-title {
+    color: var(--ave-dark);
+    font-weight: 600;
+    margin-top: 12px;
+    font-size: 16px;
+}
+
+/* ============================================================
+   Alertas / Badges
+   ============================================================ */
+.ave-alert {
+    padding: 14px 18px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 14px;
+}
+.ave-alert i { flex-shrink: 0; margin-top: 2px; }
+
+.ave-alert-info    { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+.ave-alert-success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+.ave-alert-warning { background: #fff3cd; border: 1px solid #ffeeba; color: #856404; }
+.ave-alert-danger  { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+
+.ave-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+}
+.ave-badge-success  { background: var(--ave-success); }
+.ave-badge-warning  { background: var(--ave-warning); }
+.ave-badge-danger   { background: var(--ave-danger); }
+.ave-badge-primary  { background: var(--ave-primary); }
+.ave-badge-gray     { background: var(--ave-gray); }
+
+/* ============================================================
+   Modales
+   ============================================================ */
+.ave-modal-header {
+    background: linear-gradient(135deg, var(--ave-primary) 0%, var(--ave-primary-light) 100%);
+    color: white;
+    border-radius: 6px 6px 0 0;
+    position: relative;
+    padding: 16px 20px;
+    border-bottom: none;
+}
+
+.ave-modal-close {
+    position: absolute !important;
+    right: 15px !important;
+    top: 12px !important;
+    color: white !important;
+    opacity: 0.8 !important;
+    font-size: 26px !important;
+    font-weight: 300 !important;
+    line-height: 1 !important;
+    background: transparent !important;
+    border: 0 !important;
+    cursor: pointer;
+    padding: 0 !important;
+}
+.ave-modal-close:hover { opacity: 1 !important; }
+
+.ave-modal-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    padding-right: 30px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* ============================================================
+   Lista AVE (vista listado)
+   ============================================================ */
+.ave-list-container {
+    padding: 28px;
+    background: var(--ave-light);
+    min-height: 100vh;
+}
+
+.ave-card {
+    background: var(--ave-white);
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    border: 1px solid var(--ave-border);
+    margin-bottom: 20px;
+}
+
+.ave-card-header {
+    padding: 14px 22px;
+    border-bottom: 1px solid var(--ave-border);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ave-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ave-card-header i { color: var(--ave-primary); }
+
+.ave-card-body { padding: 20px 22px; }
+
+/* Filtros */
+.ave-filtros-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.ave-filtro-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding-top: 4px;
+}
+
+/* Meta fila (contador + acciones) */
+.ave-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.ave-contador {
+    background: var(--ave-white);
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid var(--ave-border);
+    border-left: 4px solid var(--ave-primary);
+    font-size: 14px;
+    color: var(--ave-text);
+}
+.ave-contador strong { color: var(--ave-primary); font-size: 16px; }
+
+/* Paginación */
+.ave-paginacion {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 14px 20px;
+    background: var(--ave-white);
+    border-top: 1px solid var(--ave-border);
+    border-radius: 0 0 12px 12px;
+}
+
+.ave-pag-controles {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ave-pag-btn {
+    min-width: 36px;
+    height: 36px;
+    padding: 0 10px;
+    border: 1px solid var(--ave-border);
+    border-radius: 6px;
+    background: var(--ave-white);
+    color: var(--ave-text);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+.ave-pag-btn:hover:not(.disabled):not(.active) {
+    background: rgba(184,162,121,0.08);
+    border-color: var(--ave-primary);
+    color: var(--ave-primary);
+}
+.ave-pag-btn.active {
+    background: var(--ave-primary);
+    color: white;
+    border-color: var(--ave-primary);
+    font-weight: 700;
+}
+.ave-pag-btn.disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ============================================================
+   Form actions (guardar / volver)
+   ============================================================ */
+.ave-form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 28px;
+    padding: 18px 22px;
+    background: var(--ave-white);
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    border: 1px solid var(--ave-border);
+}
+
+/* ============================================================
+   No data
+   ============================================================ */
+.ave-no-data {
+    background: var(--ave-white);
+    border-radius: 12px;
+    padding: 60px 40px;
+    text-align: center;
+    border: 1px solid var(--ave-border);
+}
+.ave-no-data i      { font-size: 56px; color: var(--ave-primary); margin-bottom: 16px; display: block; }
+.ave-no-data h3     { font-size: 20px; font-weight: 700; color: var(--ave-dark); margin-bottom: 8px; }
+.ave-no-data p      { color: var(--ave-text-muted); font-size: 14px; }
+
+/* ============================================================
+   Referencias (pestañas 4 y 5) — tarjetas colapsables
+   ============================================================ */
+.ave-ref-card {
+    border: 2px solid var(--ave-border);
+    border-radius: 10px;
+    margin-bottom: 16px;
+    transition: border-color 0.2s;
+    overflow: hidden;
+}
+.ave-ref-card.active { border-color: var(--ave-primary); }
+
+.ave-ref-card-header {
+    background: #f8f9fa;
+    padding: 13px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+.ave-ref-card-header:hover { background: #f0f0f0; }
+
+.ave-ref-card-title {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--ave-text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.ave-ref-card-body {
+    padding: 20px;
+    display: none;
+}
+.ave-ref-card.active .ave-ref-card-body {
+    display: block;
+}
+
+.ave-ref-add-btn {
+    border: 2px dashed var(--ave-border);
+    border-radius: 10px;
+    padding: 18px;
+    text-align: center;
+    cursor: pointer;
+    color: var(--ave-text-muted);
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.2s;
+    background: transparent;
+    width: 100%;
+    margin-top: 12px;
+}
+.ave-ref-add-btn:hover {
+    border-color: var(--ave-primary);
+    color: var(--ave-primary);
+    background: rgba(184,162,121,0.04);
+}
+
+/* ============================================================
+   FODA (pestaña 6)
+   ============================================================ */
+.ave-foda-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 16px;
+}
+
+.ave-foda-col-title {
+    font-size: 15px;
+    font-weight: 700;
+    padding: 10px 14px;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 0;
+}
+.ave-foda-fortaleza .ave-foda-col-title { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.ave-foda-debilidad .ave-foda-col-title { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+.ave-foda-list {
+    border: 1px solid var(--ave-border);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    min-height: 100px;
+    padding: 10px;
+}
+
+.ave-foda-item {
+    background: var(--ave-white);
+    border: 1px solid var(--ave-border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    transition: box-shadow 0.15s;
+}
+.ave-foda-item:hover { box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+
+.ave-foda-item-info { flex: 1; }
+.ave-foda-item-name { font-weight: 600; font-size: 13px; color: var(--ave-text); }
+.ave-foda-item-detail { font-size: 12px; color: var(--ave-text-muted); margin-top: 3px; }
+
+.ave-foda-delete-btn {
+    background: none;
+    border: none;
+    color: var(--ave-danger);
+    cursor: pointer;
+    font-size: 15px;
+    padding: 2px 4px;
+    flex-shrink: 0;
+    transition: color 0.2s;
+}
+.ave-foda-delete-btn:hover { color: #c0392b; }
+
+/* ============================================================
+   Precio sugerido (pestaña 8)
+   ============================================================ */
+.ave-precio-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 24px;
+}
+
+.ave-precio-card {
+    background: var(--ave-light);
+    border: 1px solid var(--ave-border);
+    border-radius: 10px;
+    padding: 18px;
+    text-align: center;
+}
+.ave-precio-card.highlight {
+    background: linear-gradient(135deg, var(--ave-primary) 0%, var(--ave-primary-light) 100%);
+    border-color: var(--ave-primary-dark);
+    color: white;
+}
+
+.ave-precio-card-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ave-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 8px;
+}
+.ave-precio-card.highlight .ave-precio-card-label { color: rgba(255,255,255,0.85); }
+
+.ave-precio-card-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--ave-dark);
+}
+.ave-precio-card.highlight .ave-precio-card-value { color: white; }
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 992px) {
+    .ave-precio-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+    .ave-container       { padding: 14px; }
+    .ave-filtros-grid    { grid-template-columns: 1fr; }
+    .ave-meta-row        { flex-direction: column; align-items: flex-start; }
+    .ave-page-title      { font-size: 22px; }
+    .ave-form-actions    { flex-direction: column; }
+    .ave-btn             { width: 100%; justify-content: center; }
+    .ave-foda-grid       { grid-template-columns: 1fr; }
+    .ave-precio-grid     { grid-template-columns: 1fr; }
+    .ave-tabs-nav        { gap: 2px; }
+    .ave-tab-btn         { padding: 8px 10px; font-size: 12px; }
+    .ave-panel-title-text {
+        position: static;
+        transform: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .ave-panel-heading   { padding: 10px 14px; }
+    .ave-panel-title     { font-size: 13px; }
+}

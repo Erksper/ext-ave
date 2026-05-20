@@ -1,0 +1,126 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "required": false
+        },
+        "referencia": {
+            "type": "varchar",
+            "maxLength": 100
+        },
+        "estatus": {
+            "type": "enum",
+            "options": ["elaboracion", "cerrado"],
+            "default": "elaboracion"
+        },
+        "nombrePropietario": {
+            "type": "varchar",
+            "maxLength": 255,
+            "required": true
+        },
+        "tipoPropiedad": {
+            "type": "enum",
+            "options": ["Residencial", "Vacacional", "Comercial", "Terreno", "Industrial"]
+        },
+        "estado": {
+            "type": "varchar",
+            "maxLength": 100
+        },
+        "municipio": {
+            "type": "varchar",
+            "maxLength": 100
+        },
+        "parroquia": {
+            "type": "varchar",
+            "maxLength": 100
+        },
+        "ciudad": {
+            "type": "varchar",
+            "maxLength": 100
+        },
+        "avenidaCalle": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "edificioCasa": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "urbanizacion": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "subtipoPropiedad": {
+            "type": "enum",
+            "options": ["Apartamento", "Casa", "Town-House", "Penthouse", "Casa Duplex", "Casa Bote", "Quinta", "Edificio", "Local Comercial", "Oficina", "Galpón", "Parcela"]
+        },
+        "areaConstruida": {
+            "type": "float",
+            "required": false
+        },
+        "antiguedad": {
+            "type": "int",
+            "required": false
+        },
+        "numHabitaciones": {
+            "type": "float",
+            "required": false
+        },
+        "numBanos": {
+            "type": "float",
+            "required": false
+        },
+        "puestoEstacionamiento": {
+            "type": "int",
+            "required": false
+        },
+        "piso": {
+            "type": "varchar",
+            "maxLength": 20
+        },
+        "ascensores": {
+            "type": "bool",
+            "default": false
+        },
+        "servicios": {
+            "type": "enum",
+            "options": ["completos", "basicos"]
+        },
+        "terraza": {
+            "type": "bool",
+            "default": false
+        },
+        "seguridad": {
+            "type": "enum",
+            "options": ["Vigilancia 24H", "Cerco", "Camaras", "Otro"]
+        },
+        "descripcion": {
+            "type": "text"
+        },
+        "foto": {
+            "type": "image"
+        },
+        "teams": {
+            "type": "hasMany",
+            "entity": "Team",
+            "relationName": "entityTeam"
+        }
+    },
+    "links": {
+        "avePrincipales": {
+            "type": "hasMany",
+            "entity": "AvePrincipal",
+            "foreign": "aveInmuebleId",
+            "relationName": "aveInmueblePrincipales"
+        },
+        "teams": {
+            "type": "hasMany",
+            "entity": "Team",
+            "relationName": "entityTeam"
+        }
+    },
+    "collection": {
+        "orderBy": "createdAt",
+        "order": "DESC"
+    }
+}

@@ -1,0 +1,30 @@
+[
+    {
+        "name": "numeroAve",
+        "width": 10
+    },
+    {
+        "name": "nombreCliente",
+        "width": 20
+    },
+    {
+        "name": "tipoIdentificacion",
+        "width": 8
+    },
+    {
+        "name": "identificacionCliente",
+        "width": 15
+    },
+    {
+        "name": "aveInmueble",
+        "width": 20
+    },
+    {
+        "name": "assignedUser",
+        "width": 15
+    },
+    {
+        "name": "createdAt",
+        "width": 12
+    }
+]

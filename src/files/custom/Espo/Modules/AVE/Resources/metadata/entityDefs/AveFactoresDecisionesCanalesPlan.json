@@ -1,0 +1,44 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "required": true,
+            "maxLength": 255
+        },
+        "descripcion": {
+            "type": "text"
+        },
+        "tipo": {
+            "type": "enum",
+            "options": ["decicion", "factor", "canal", "plan"],
+            "required": true
+        },
+        "impacto": {
+            "type": "enum",
+            "options": ["positivo", "negativo"],
+            "required": false
+        },
+        "teams": {
+            "type": "hasMany",
+            "entity": "Team",
+            "relationName": "entityTeam"
+        }
+    },
+    "links": {
+        "aveInmueble": {
+            "type": "belongsTo",
+            "entity": "AveInmueble",
+            "key": "aveInmuebleId",
+            "foreign": "id"
+        },
+        "teams": {
+            "type": "hasMany",
+            "entity": "Team",
+            "relationName": "entityTeam"
+        }
+    },
+    "collection": {
+        "orderBy": "name",
+        "order": "ASC"
+    }
+}

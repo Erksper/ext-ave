@@ -1,0 +1,145 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "required": false
+        },
+        "numeroAve": {
+            "type": "varchar",
+            "required": false,
+            "maxLength": 50
+        },
+        "tipoIdentificacion": {
+            "type": "enum",
+            "options": ["V", "E", "J", "P"],
+            "required": false
+        },
+        "identificacionCliente": {
+            "type": "varchar",
+            "maxLength": 30
+        },
+        "nombreCliente": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "correoCliente": {
+            "type": "varchar",
+            "maxLength": 255
+        },
+        "telefonoCliente": {
+            "type": "varchar",
+            "maxLength": 50
+        },
+        "cedulaCatastral": {
+            "type": "bool",
+            "default": false
+        },
+        "cedCatNota": {
+            "type": "varchar",
+            "maxLength": 500
+        },
+        "registroPropiedad": {
+            "type": "bool",
+            "default": false
+        },
+        "regProNota": {
+            "type": "varchar",
+            "maxLength": 500
+        },
+        "solvenciaMunicipal": {
+            "type": "bool",
+            "default": false
+        },
+        "solMunNota": {
+            "type": "varchar",
+            "maxLength": 500
+        },
+        "comentarioLegal": {
+            "type": "bool",
+            "default": false
+        },
+        "comLegNota": {
+            "type": "varchar",
+            "maxLength": 500
+        },
+        "valorMax": {
+            "type": "currency",
+            "required": false
+        },
+        "precioMax": {
+            "type": "currency",
+            "required": false
+        },
+        "valorMin": {
+            "type": "currency",
+            "required": false
+        },
+        "precioMin": {
+            "type": "currency",
+            "required": false
+        },
+        "valorPromedio": {
+            "type": "currency",
+            "required": false
+        },
+        "precioOriginal": {
+            "type": "currency",
+            "required": false
+        },
+        "precioSugerido": {
+            "type": "currency",
+            "required": false
+        },
+        "ajustePrecio": {
+            "type": "float",
+            "required": false
+        },
+        "assignedUser": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "teams": {
+            "type": "hasMany",
+            "entity": "Team",
+            "relationName": "entityTeam"
+        }
+    },
+    "links": {
+        "assignedUser": {
+            "type": "belongsTo",
+            "entity": "User"
+        },
+        "aveInmueble": {
+            "type": "belongsTo",
+            "entity": "AveInmueble",
+            "key": "aveInmuebleId",
+            "foreign": "id"
+        },
+        "aveInmuebleReferencias": {
+            "type": "hasMany",
+            "entity": "AveInmuebleReferencia",
+            "foreign": "avePrincipalId",
+            "relationName": "avePrincipalReferencias"
+        },
+        "aveAnalisis": {
+            "type": "hasMany",
+            "entity": "AveAnalisis",
+            "foreign": "avePrincipalId",
+            "relationName": "avePrincipalAnalisis"
+        },
+        "teams": {
+            "type": "hasMany",
+            "entity": "Team",
+            "relationName": "entityTeam"
+        }
+    },
+    "indexes": {
+        "numeroAve": {
+            "columns": ["numero_ave"]
+        }
+    },
+    "collection": {
+        "orderBy": "createdAt",
+        "order": "DESC"
+    }
+}

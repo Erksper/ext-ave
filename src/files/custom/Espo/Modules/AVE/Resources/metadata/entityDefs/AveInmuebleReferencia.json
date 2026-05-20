@@ -1,0 +1,97 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "required": false
+        },
+        "tipo": {
+            "type": "enum",
+            "options": ["promocion", "vendido"],
+            "required": true
+        },
+        "tipoPropiedad": {
+            "type": "enum",
+            "options": ["Residencial", "Vacacional", "Comercial", "Terreno", "Industrial"]
+        },
+        "usarCalculo": {
+            "type": "bool",
+            "default": true
+        },
+        "subtipoPropiedad": {
+            "type": "enum",
+            "options": ["Apartamento", "Casa", "Town-House", "Penthouse", "Casa Duplex", "Casa Bote", "Quinta", "Edificio", "Local Comercial", "Oficina", "Galpón", "Parcela"]
+        },
+        "valorReferencial": {
+            "type": "currency",
+            "required": false
+        },
+        "areaTerreno": {
+            "type": "float",
+            "required": false
+        },
+        "areaConstruida": {
+            "type": "float",
+            "required": false
+        },
+        "antiguedad": {
+            "type": "int",
+            "required": false
+        },
+        "habitaciones": {
+            "type": "int",
+            "required": false
+        },
+        "banos": {
+            "type": "int",
+            "required": false
+        },
+        "estacionamiento": {
+            "type": "int",
+            "required": false
+        },
+        "piso": {
+            "type": "varchar",
+            "maxLength": 20
+        },
+        "ascensores": {
+            "type": "bool",
+            "default": false
+        },
+        "terraza": {
+            "type": "bool",
+            "default": false
+        },
+        "acabados": {
+            "type": "enum",
+            "options": ["Obra gris", "Acabados basicos", "Acabados medios", "Acabados de lujo"]
+        },
+        "seguridad": {
+            "type": "enum",
+            "options": ["Vigilancia 24h", "Porton", "Cercado", "Otro"]
+        },
+        "valorm2": {
+            "type": "currency",
+            "required": false
+        },
+        "descripcion": {
+            "type": "text"
+        },
+        "foto": {
+            "type": "image"
+        },
+        "enlace": {
+            "type": "varchar",
+            "maxLength": 500
+        }
+    },
+    "links": {
+        "avePrincipal": {
+            "type": "belongsTo",
+            "entity": "AvePrincipal"
+        }
+    },
+    "collection": {
+        "orderBy": "createdAt",
+        "order": "ASC"
+    }
+}

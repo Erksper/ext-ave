@@ -1,0 +1,28 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "required": true,
+            "maxLength": 255
+        },
+        "tipo": {
+            "type": "enum",
+            "options": ["fortaleza", "debilidad"],
+            "required": true
+        },
+        "detalle": {
+            "type": "varchar",
+            "maxLength": 1000
+        }
+    },
+    "links": {
+        "avePrincipal": {
+            "type": "belongsTo",
+            "entity": "AvePrincipal"
+        }
+    },
+    "collection": {
+        "orderBy": "tipo",
+        "order": "ASC"
+    }
+}

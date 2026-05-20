@@ -1,0 +1,9 @@
+{
+    "controller": "ave:controllers/ave-principal",
+    "iconClass": "fas fa-file-invoice-dollar",
+    "views": {
+        "list": "ave:views/ave-principal/list",
+        "detail": "ave:views/ave-principal/detail",
+        "edit": "ave:views/ave-principal/detail"
+    }
+}

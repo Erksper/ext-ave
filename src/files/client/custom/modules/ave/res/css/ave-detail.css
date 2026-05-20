@@ -1,0 +1,374 @@
+/* ============================================================
+   AVE Detail — Estilos específicos del formulario multi-tab
+   ============================================================ */
+
+/* ── Panel badge (contador refs) ── */
+.ave-panel-badge {
+    background: var(--ave-primary);
+    color: white;
+    border-radius: 10px;
+    padding: 2px 10px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+/* ── Situación Legal ── */
+.ave-legal-item {
+    padding: 14px 0;
+}
+
+.ave-legal-divider {
+    border-top: 1px solid var(--ave-border);
+}
+
+.ave-legal-nota {
+    margin-top: 10px;
+    padding-left: 28px;
+    animation: ave-slide-down 0.2s ease;
+}
+
+@keyframes ave-slide-down {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Buscador de inmueble ── */
+.ave-search-input-wrapper {
+    position: relative;
+}
+
+.ave-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--ave-text-muted);
+    font-size: 13px;
+    pointer-events: none;
+}
+
+.ave-search-input {
+    padding-left: 36px !important;
+}
+
+.ave-search-dropdown {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    background: var(--ave-white);
+    border: 2px solid var(--ave-primary);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    z-index: 1000;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.ave-search-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background 0.15s;
+    font-size: 13px;
+}
+
+.ave-search-item:last-child { border-bottom: none; }
+
+.ave-search-item:hover {
+    background: rgba(184,162,121,0.08);
+}
+
+.ave-search-item-main {
+    font-weight: 600;
+    color: var(--ave-text);
+}
+
+.ave-search-item-sub {
+    font-size: 11px;
+    color: var(--ave-text-muted);
+    margin-top: 2px;
+}
+
+.ave-search-no-results {
+    padding: 16px;
+    text-align: center;
+    color: var(--ave-text-muted);
+    font-size: 13px;
+}
+
+.ave-search-loading {
+    padding: 16px;
+    text-align: center;
+    color: var(--ave-text-muted);
+    font-size: 13px;
+}
+
+/* ── Tarjeta de inmueble seleccionado ── */
+.ave-inmueble-card {
+    border: 2px solid var(--ave-primary);
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.ave-inmueble-card-header {
+    background: linear-gradient(135deg, var(--ave-primary) 0%, var(--ave-primary-light) 100%);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.ave-inmueble-card-title {
+    color: white;
+    font-weight: 700;
+    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.ave-inmueble-card-body {
+    padding: 18px;
+    background: #fafafa;
+}
+
+.ave-info-item { margin-bottom: 4px; }
+.ave-info-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ave-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+.ave-info-value {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--ave-text);
+    margin-top: 2px;
+}
+
+/* ── Tarjetas de referencia ── */
+.ave-ref-card {
+    border: 2px solid var(--ave-border);
+    border-radius: 10px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+}
+
+.ave-ref-card-header {
+    background: #f8f9fa;
+    padding: 12px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: default;
+}
+
+.ave-ref-card-num {
+    background: var(--ave-primary);
+    color: white;
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+.ave-ref-card-info {
+    flex: 1;
+    margin: 0 12px;
+}
+
+.ave-ref-card-title {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--ave-text);
+}
+
+.ave-ref-card-subtitle {
+    font-size: 11px;
+    color: var(--ave-text-muted);
+    margin-top: 1px;
+}
+
+.ave-ref-card-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.ave-ref-card-body {
+    padding: 16px 18px;
+    background: var(--ave-white);
+    border-top: 1px solid var(--ave-border);
+}
+
+.ave-ref-field {
+    margin-bottom: 8px;
+}
+
+.ave-ref-field-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ave-text-muted);
+    text-transform: uppercase;
+}
+
+.ave-ref-field-value {
+    font-size: 13px;
+    color: var(--ave-text);
+    font-weight: 500;
+}
+
+/* Badge de "usar en cálculo" */
+.ave-ref-calc-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+}
+.ave-ref-calc-si  { background: #d4edda; color: #155724; }
+.ave-ref-calc-no  { background: #f8d7da; color: #721c24; }
+
+/* Valor por m² calculado */
+.ave-valorm2-display {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--ave-primary);
+}
+
+/* ── Precio sugerido ── */
+.ave-input-suffix-wrapper {
+    display: flex;
+    align-items: center;
+}
+
+.ave-input-suffix-input {
+    border-radius: 8px 0 0 8px !important;
+    border-right: none !important;
+}
+
+.ave-input-suffix {
+    background: var(--ave-border);
+    border: 2px solid var(--ave-border);
+    border-left: none;
+    border-radius: 0 8px 8px 0;
+    padding: 9px 12px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ave-text-muted);
+    white-space: nowrap;
+}
+
+/* ── Tabla factores / decisiones / canales / planes ── */
+.ave-impacto-positivo {
+    color: var(--ave-success);
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.ave-impacto-negativo {
+    color: var(--ave-danger);
+    font-weight: 700;
+    font-size: 13px;
+}
+
+.ave-btn-quitar {
+    background: none;
+    border: none;
+    color: var(--ave-danger);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+.ave-btn-quitar:hover {
+    background: #f8d7da;
+    color: #c0392b;
+}
+
+/* ── Vista previa del reporte ── */
+#ave-preview-container {
+    background: #f8f8f8;
+    border: 1px solid var(--ave-border);
+    border-radius: 8px;
+    padding: 20px;
+    min-height: 400px;
+}
+
+.ave-preview-section {
+    background: white;
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    border: 1px solid var(--ave-border);
+}
+
+.ave-preview-section-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ave-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--ave-primary);
+}
+
+.ave-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.ave-preview-field-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ave-text-muted);
+    text-transform: uppercase;
+}
+
+.ave-preview-field-value {
+    font-size: 14px;
+    color: var(--ave-text);
+    font-weight: 500;
+    margin-top: 2px;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    .ave-tabs-nav {
+        padding: 8px 10px 0;
+    }
+    .ave-tab-btn {
+        padding: 7px 8px;
+        font-size: 11px;
+    }
+    .ave-tab-btn .tab-num {
+        display: none;
+    }
+    .ave-inmueble-card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    .ave-ref-card-actions {
+        flex-direction: column;
+    }
+    .ave-preview-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .ave-preview-grid {
+        grid-template-columns: 1fr;
+    }
+}

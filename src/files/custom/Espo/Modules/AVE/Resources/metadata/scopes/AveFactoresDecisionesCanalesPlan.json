@@ -1,0 +1,14 @@
+{
+    "entity": true,
+    "object": true,
+    "importable": false,
+    "stream": false,
+    "disabled": false,
+    "type": "Base",
+    "tab": false,
+    "acl": true,
+    "aclPortal": false,
+    "hasAssignedUser": false,
+    "hasTeam": true,
+    "module": "Ave"
+}
