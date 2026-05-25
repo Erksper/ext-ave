@@ -6,12 +6,8 @@
         },
         "referencia": {
             "type": "varchar",
-            "maxLength": 100
-        },
-        "estatus": {
-            "type": "enum",
-            "options": ["elaboracion", "cerrado"],
-            "default": "elaboracion"
+            "maxLength": 50,
+            "unique": true
         },
         "nombrePropietario": {
             "type": "varchar",
@@ -20,7 +16,11 @@
         },
         "tipoPropiedad": {
             "type": "enum",
-            "options": ["Residencial", "Vacacional", "Comercial", "Terreno", "Industrial"]
+            "options": ["habitacional", "comercial", "industrial", "vacacional", "terreno"]
+        },
+        "subtipoPropiedad": {
+            "type": "enum",
+            "options": ["departamento", "casa", "town-house", "terreno", "edificio", "oficinas", "local", "galpon", "penthouse", "hacienda", "deposito", "hotel-posada", "fondo-de-comercio", "negocio", "casa-bote", "clinica", "fabrica", "finca", "club", "tiempo-compartido", "nave", "casa-duplex", "quinta", "bodega", "inmueble-productivo", "rancho", "fraccionamiento"]
         },
         "estado": {
             "type": "varchar",
@@ -50,29 +50,23 @@
             "type": "varchar",
             "maxLength": 255
         },
-        "subtipoPropiedad": {
-            "type": "enum",
-            "options": ["Apartamento", "Casa", "Town-House", "Penthouse", "Casa Duplex", "Casa Bote", "Quinta", "Edificio", "Local Comercial", "Oficina", "Galpón", "Parcela"]
-        },
         "areaConstruida": {
-            "type": "float",
-            "required": false
+            "type": "float"
+        },
+        "areaTerreno": {
+            "type": "float"
         },
         "antiguedad": {
-            "type": "int",
-            "required": false
+            "type": "int"
         },
         "numHabitaciones": {
-            "type": "float",
-            "required": false
+            "type": "float"
         },
         "numBanos": {
-            "type": "float",
-            "required": false
+            "type": "float"
         },
         "puestoEstacionamiento": {
-            "type": "int",
-            "required": false
+            "type": "int"
         },
         "piso": {
             "type": "varchar",
@@ -99,28 +93,17 @@
         },
         "foto": {
             "type": "image"
-        },
-        "teams": {
-            "type": "hasMany",
-            "entity": "Team",
-            "relationName": "entityTeam"
         }
     },
     "links": {
         "avePrincipales": {
             "type": "hasMany",
             "entity": "AvePrincipal",
-            "foreign": "aveInmuebleId",
-            "relationName": "aveInmueblePrincipales"
-        },
-        "teams": {
-            "type": "hasMany",
-            "entity": "Team",
-            "relationName": "entityTeam"
+            "foreign": "aveInmueble"
         }
     },
     "collection": {
         "orderBy": "createdAt",
-        "order": "DESC"
+        "order": "desc"
     }
 }

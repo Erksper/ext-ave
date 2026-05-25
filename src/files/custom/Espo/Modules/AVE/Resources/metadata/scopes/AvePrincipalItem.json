@@ -6,9 +6,6 @@
     "disabled": false,
     "type": "Base",
     "tab": false,
-    "acl": true,
-    "aclPortal": false,
-    "hasAssignedUser": false,
-    "hasTeam": false,
+    "acl": false,
     "module": "AVE"
 }

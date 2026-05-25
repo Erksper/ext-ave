@@ -1,0 +1,33 @@
+{
+    "fields": {
+        "tipo": {
+            "type": "enum",
+            "options": ["factor", "decision", "canal", "plan"],
+            "required": true
+        },
+        "createdAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "modifiedAt": {
+            "type": "datetime",
+            "readOnly": true
+        }
+    },
+    "links": {
+        "avePrincipal": {
+            "type": "belongsTo",
+            "entity": "AvePrincipal",
+            "foreign": "items"
+        },
+        "item": {
+            "type": "belongsTo",
+            "entity": "AveFactoresDecisionesCanalesPlan",
+            "foreign": "avePrincipales"
+        }
+    },
+    "collection": {
+        "orderBy": "createdAt",
+        "order": "asc"
+    }
+}

@@ -1,37 +1,30 @@
 define('ave:views/ave-principal/modules/foda', [], function () {
 
     var FodaManager = function (view) {
-        this.view  = view;
+        this.view = view;
         this.items = { fortaleza: [], debilidad: [] };
     };
 
     FodaManager.prototype.cargar = function (analisis) {
-        var self = this;
         this.items = { fortaleza: [], debilidad: [] };
-
-        analisis.forEach(function (a) {
-            var tipo = a.tipo === 'debilidad' ? 'debilidad' : 'fortaleza';
-            self.items[tipo].push({ id: a.id || null, name: a.name, detalle: a.detalle });
-        });
-
+        if (!analisis) return;
+        analisis.forEach(function (item) {
+            var tipo = item.tipo === 'debilidad' ? 'debilidad' : 'fortaleza';
+            this.items[tipo].push({ id: item.id, name: item.name, detalle: item.detalle });
+        }.bind(this));
         this.renderizar('fortaleza');
         this.renderizar('debilidad');
     };
 
     FodaManager.prototype.abrirModal = function () {
-        var self = this;
         this.view.$el.find('#foda-nombre').val('');
         this.view.$el.find('#foda-detalle').val('');
         this.view.$el.find('input[name="foda-tipo"][value="fortaleza"]').prop('checked', true);
-
         this.view.$el.find('#btn-guardar-foda').off('click').on('click', function () {
-            self.guardarDesdeModal();
-        });
-
+            this.guardarDesdeModal();
+        }.bind(this));
         this.view.$el.find('#modalFoda').modal('show');
-        setTimeout(function () {
-            self.view.$el.find('#foda-nombre').focus();
-        }, 400);
+        setTimeout(function () { this.view.$el.find('#foda-nombre').focus(); }.bind(this), 400);
     };
 
     FodaManager.prototype.guardarDesdeModal = function () {
@@ -41,10 +34,8 @@ define('ave:views/ave-principal/modules/foda', [], function () {
             this.view.$el.find('#foda-nombre').focus();
             return;
         }
-
-        var tipo   = this.view.$el.find('input[name="foda-tipo"]:checked').val();
-        var detalle= this.view.$el.find('#foda-detalle').val().trim();
-
+        var tipo = this.view.$el.find('input[name="foda-tipo"]:checked').val();
+        var detalle = this.view.$el.find('#foda-detalle').val().trim();
         this.items[tipo].push({ id: null, name: nombre, detalle: detalle });
         this.renderizar(tipo);
         this.view.$el.find('#modalFoda').modal('hide');
@@ -55,36 +46,28 @@ define('ave:views/ave-principal/modules/foda', [], function () {
         if (!confirm('¿Eliminar este elemento?')) return;
         this.items[tipo].splice(idx, 1);
         this.renderizar(tipo);
+        Espo.Ui.success('Eliminado');
     };
 
     FodaManager.prototype.renderizar = function (tipo) {
-        var self    = this;
-        var items   = this.items[tipo];
-        var listId  = tipo === 'fortaleza' ? 'foda-fortalezas' : 'foda-debilidades';
-        var $list   = this.view.$el.find('#' + listId);
-
+        var items = this.items[tipo];
+        var listId = tipo === 'fortaleza' ? 'foda-fortalezas' : 'foda-debilidades';
+        var $list = this.view.$el.find('#' + listId);
         if (items.length === 0) {
-            $list.html(
-                '<div style="text-align:center;color:var(--ave-text-muted);padding:20px;font-size:13px;">' +
-                (tipo === 'fortaleza' ? 'No hay fortalezas' : 'No hay debilidades') + ' registradas</div>'
-            );
+            $list.html('<div style="text-align:center;padding:20px;color:#aaa;">No hay ' + (tipo === 'fortaleza' ? 'fortalezas' : 'debilidades') + ' registradas</div>');
             return;
         }
-
         var html = '';
         items.forEach(function (item, idx) {
             html += '<div class="ave-foda-item">';
             html += '<div class="ave-foda-item-info">';
-            html += '<div class="ave-foda-item-name">' + self.escape(item.name) + '</div>';
-            if (item.detalle) {
-                html += '<div class="ave-foda-item-detail">' + self.escape(item.detalle) + '</div>';
-            }
+            html += '<div class="ave-foda-item-name">' + this.escape(item.name) + '</div>';
+            if (item.detalle) html += '<div class="ave-foda-item-detail">' + this.escape(item.detalle) + '</div>';
             html += '</div>';
             html += '<button class="ave-foda-delete-btn" data-action="eliminar-foda" data-tipo="' + tipo + '" data-idx="' + idx + '">';
             html += '<i class="fas fa-times-circle"></i></button>';
             html += '</div>';
-        });
-
+        }.bind(this));
         $list.html(html);
     };
 

@@ -9,6 +9,6 @@
     "acl": true,
     "aclPortal": false,
     "hasAssignedUser": false,
-    "hasTeam": true,
-    "module": "Ave"
+    "hasTeam": false,
+    "module": "AVE"
 }

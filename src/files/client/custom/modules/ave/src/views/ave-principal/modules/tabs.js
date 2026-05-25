@@ -1,12 +1,14 @@
 define('ave:views/ave-principal/modules/tabs', [], function () {
 
     var TabsManager = function (view) {
-        this.view    = view;
+        this.view = view;
         this.tabActual = 'tab-1';
+        console.log('TabsManager initialized');
     };
 
     TabsManager.prototype.activarTab = function (tabId) {
         var self = this;
+        console.log('activarTab: ' + tabId);
         this.tabActual = tabId;
 
         this.view.$el.find('.ave-tab-btn').removeClass('active');
@@ -15,20 +17,15 @@ define('ave:views/ave-principal/modules/tabs', [], function () {
         this.view.$el.find('.ave-tab-pane').removeClass('active');
         this.view.$el.find('#' + tabId).addClass('active');
 
-        // Scroll suave al inicio del contenido
+        // Scroll suave
         var $content = this.view.$el.find('.ave-tab-content');
         if ($content.length) {
-            $('html, body').animate({
-                scrollTop: $content.offset().top - 80
-            }, 300);
+            $('html, body').animate({ scrollTop: $content.offset().top - 80 }, 300);
         }
 
-        // Acciones especiales por tab
-        if (tabId === 'tab-7') {
-            // Cargar select de factores si no estaba cargado
-        }
-        if (tabId === 'tab-12') {
-            self.view.previewManager.generar();
+        // Acción especial para la pestaña 12 (Vista Previa)
+        if (tabId === 'tab-12' && this.view.previewManager) {
+            this.view.previewManager.generar();
         }
     };
 

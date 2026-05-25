@@ -1,126 +1,167 @@
 <?php
-
 namespace Espo\Modules\AVE\Controllers;
 
 use Espo\Core\Api\Request;
 use Espo\Core\Api\Response;
-use Espo\Core\Controllers\Record;
+use Espo\Core\Controllers\RecordBase;
 use Espo\Core\Exceptions\BadRequest;
-use Espo\Modules\AVE\Services\AvePrincipalService;
+use Espo\Core\Exceptions\NotFound;
 
-class AvePrincipal extends Record
+class AvePrincipal extends RecordBase
 {
-    /**
-     * GET /api/v1/AvePrincipal/action/getLista
-     * Lista paginada de avalúos
-     */
-    public function getActionGetLista(Request $request, Response $response): void
+    public function getActionGetLista(Request $request, Response $response): array
     {
-        $pagina = (int) ($request->getQueryParam('pagina') ?? 1);
-        $porPagina = (int) ($request->getQueryParam('porPagina') ?? 20);
-        $numero = $request->getQueryParam('numero') ?? '';
-        $cliente = $request->getQueryParam('cliente') ?? '';
-        $identificacion = $request->getQueryParam('identificacion') ?? '';
-        $asesor = $request->getQueryParam('asesor') ?? '';
+        $pagina    = (int)($request->getQueryParam('pagina')         ?? 1);
+        $porPagina = (int)($request->getQueryParam('porPagina')      ?? 20);
+        $numero    = $request->getQueryParam('numero')                ?? '';
+        $cliente   = $request->getQueryParam('cliente')               ?? '';
+        $identi    = $request->getQueryParam('identificacion')        ?? '';
+        $asesor    = $request->getQueryParam('asesor')                ?? '';
 
-        /** @var AvePrincipalService $service */
-        $service = $this->getRecordService();
-        $result = $service->getLista($pagina, $porPagina, $numero, $cliente, $identificacion, $asesor);
-        $response->writeData($result);
+        return $this->getServiceFactory()->create('AvePrincipal')
+            ->getLista($pagina, $porPagina, $numero, $cliente, $identi, $asesor);
     }
 
-    /**
-     * GET /api/v1/AvePrincipal/action/getOrCreate?id=xxx
-     * Carga o crea el registro principal del AVE
-     */
-    public function getActionGetOrCreate(Request $request, Response $response): void
+    public function getActionGetOrCreate(Request $request, Response $response): array
     {
         $id = $request->getQueryParam('id');
-        if (!$id) {
-            throw new BadRequest("Parámetro 'id' requerido.");
-        }
-
-        /** @var AvePrincipalService $service */
-        $service = $this->getRecordService();
-        $result = $service->getOrCreate($id);
-        $response->writeData($result);
+        if (!$id) throw new BadRequest("Parámetro 'id' requerido.");
+        return $this->getServiceFactory()->create('AvePrincipal')->getOrCreate($id);
     }
 
-    /**
-     * POST /api/v1/AvePrincipal/action/guardar
-     * Guarda todos los datos del AVE desde el frontend multi-tab
-     */
-    public function postActionGuardar(Request $request, Response $response): void
+    public function postActionGuardar(Request $request, Response $response): array
     {
         $data = $request->getParsedBody();
-        if (empty($data->aveId)) {
-            throw new BadRequest("Parámetro 'aveId' requerido.");
-        }
-
-        /** @var AvePrincipalService $service */
-        $service = $this->getRecordService();
-        $result = $service->guardarCompleto($data);
-        $response->writeData($result);
+        if (empty($data->aveId)) throw new BadRequest("Parámetro 'aveId' requerido.");
+        return $this->getServiceFactory()->create('AvePrincipal')->guardarCompleto($data);
     }
 
-    /**
-     * GET /api/v1/AvePrincipal/action/buscarInmueble?q=texto&teamId=xxx
-     * Busca inmuebles existentes para vincular
-     */
-    public function getActionBuscarInmueble(Request $request, Response $response): void
+    public function getActionBuscarInmueble(Request $request, Response $response): array
     {
-        $q = $request->getQueryParam('q') ?? '';
+        $q      = $request->getQueryParam('q')      ?? '';
         $teamId = $request->getQueryParam('teamId') ?? null;
-
-        /** @var AvePrincipalService $service */
-        $service = $this->getRecordService();
-        $result = $service->buscarInmuebles($q, $teamId);
-        $response->writeData($result);
+        return $this->getServiceFactory()->create('AvePrincipal')->buscarInmuebles($q, $teamId);
     }
 
-    /**
-     * POST /api/v1/AvePrincipal/action/crearInmueble
-     * Crea un nuevo AveInmueble y lo devuelve
-     */
-    public function postActionCrearInmueble(Request $request, Response $response): void
+    public function postActionCrearInmueble(Request $request, Response $response): array
     {
-        $data = $request->getParsedBody();
-
-        /** @var AvePrincipalService $service */
-        $service = $this->getRecordService();
-        $result = $service->crearInmueble($data);
-        $response->writeData($result);
+        return $this->getServiceFactory()->create('AvePrincipal')->crearInmueble($request->getParsedBody());
     }
 
-    /**
-     * GET /api/v1/AvePrincipal/action/getFactoresPorTipo?tipo=factor&teamId=xxx
-     * Devuelve lista de factores/decisiones/canales/planes por tipo y team
-     */
-    public function getActionGetFactoresPorTipo(Request $request, Response $response): void
+    public function getActionGetFactoresPorTipo(Request $request, Response $response): array
     {
-        $tipo = $request->getQueryParam('tipo');
+        $tipo   = $request->getQueryParam('tipo');
         $teamId = $request->getQueryParam('teamId') ?? null;
-        if (!$tipo) {
-            throw new BadRequest("Parámetro 'tipo' requerido.");
-        }
-
-        /** @var AvePrincipalService $service */
-        $service = $this->getRecordService();
-        $result = $service->getFactoresPorTipo($tipo, $teamId);
-        $response->writeData($result);
+        if (!$tipo) throw new BadRequest("Parámetro 'tipo' requerido.");
+        return $this->getServiceFactory()->create('AvePrincipal')->getFactoresPorTipo($tipo, $teamId);
     }
 
-    /**
-     * POST /api/v1/AvePrincipal/action/crearFactor
-     * Crea un nuevo factor/decisión/canal/plan para el team del usuario
-     */
-    public function postActionCrearFactor(Request $request, Response $response): void
+    public function postActionCrearFactor(Request $request, Response $response): array
     {
-        $data = $request->getParsedBody();
+        return $this->getServiceFactory()->create('AvePrincipal')->crearFactor($request->getParsedBody());
+    }
 
-        /** @var AvePrincipalService $service */
-        $service = $this->getRecordService();
-        $result = $service->crearFactor($data);
-        $response->writeData($result);
+    public function postActionUploadFoto(Request $request, Response $response): array
+    {
+        try {
+            if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+                throw new BadRequest("No se recibió ningún archivo o hubo un error");
+            }
+
+            $file = $_FILES['file'];
+            $content = file_get_contents($file['tmp_name']);
+            $name = $file['name'];
+            $type = $file['type'];
+
+            $em = $this->getContainer()->get('entityManager');
+
+            $attachment = $em->getNewEntity('Attachment');
+            $attachment->set([
+                'name' => $name,
+                'type' => $type,
+                'size' => $file['size'],
+                'role' => 'Attachment',
+                'relatedType' => 'AveInmuebleReferencia',
+                'field' => 'foto'
+            ]);
+            $em->saveEntity($attachment);
+
+            $rootDir = realpath(__DIR__ . '/../../../../');
+            $uploadDir = $rootDir . '/data/upload/';
+            
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0777, true);
+            }
+
+            $targetPath = $uploadDir . $attachment->getId();
+            if (file_put_contents($targetPath, $content) === false) {
+                $em->removeEntity($attachment);
+                throw new BadRequest("No se pudo guardar el archivo en el servidor");
+            }
+
+            return ['success' => true, 'id' => $attachment->getId()];
+        } catch (\Exception $e) {
+            $GLOBALS['log']->error('Error en uploadFoto: ' . $e->getMessage());
+            throw new BadRequest("Error interno: " . $e->getMessage());
+        }
+    }
+
+    public function postActionRecalcularPrecios(Request $request, Response $response): array
+    {
+        try {
+            $data = $request->getParsedBody();
+            if (empty($data->aveId)) {
+                throw new BadRequest("Parámetro 'aveId' requerido.");
+            }
+            
+            $service = $this->getServiceFactory()->create('AvePrincipal');
+            
+            // Obtener la entidad actualizada
+            $em = $this->getEntityManager();
+            $entity = $em->getEntity('AvePrincipal', $data->aveId);
+            
+            if (property_exists($data, 'pesoOfertas')) {
+                $entity->set('pesoOfertas', (float)$data->pesoOfertas);
+                $entity->set('pesoVentas', 100 - (float)$data->pesoOfertas);
+                $em->saveEntity($entity);
+            }
+            
+            if (property_exists($data, 'ajustePrecio')) {
+                $entity->set('ajustePrecio', (float)$data->ajustePrecio);
+                $em->saveEntity($entity);
+            }
+            
+            // Recalcular precios
+            $service->recalcularPreciosParaEntity($entity);
+            
+            // Recargar la entidad para obtener los valores actualizados
+            $entity = $em->getEntity('AvePrincipal', $data->aveId);
+            
+            return [
+                'success' => true,
+                'data' => [
+                    'valorMax' => $entity->get('valorMax'),
+                    'valorMin' => $entity->get('valorMin'),
+                    'valorPromedio' => $entity->get('valorPromedio'),
+                    'precioMax' => $entity->get('precioMax'),
+                    'precioMin' => $entity->get('precioMin'),
+                    'precioOriginal' => $entity->get('precioOriginal'),
+                    'precioSugerido' => $entity->get('precioSugerido'),
+                    'rangoPrecioMin' => $entity->get('rangoPrecioMin'),
+                    'rangoPrecioMax' => $entity->get('rangoPrecioMax'),
+                    'pesoOfertas' => $entity->get('pesoOfertas'),
+                    'pesoVentas' => $entity->get('pesoVentas'),
+                    'ajustePrecio' => $entity->get('ajustePrecio')
+                ]
+            ];
+        } catch (\Exception $e) {
+            $GLOBALS['log']->error('Error en recalcularPrecios: ' . $e->getMessage());
+            throw new BadRequest($e->getMessage());
+        }
+    }
+
+    protected function getEntityManager(): \Espo\ORM\EntityManager
+    {
+        return $this->getContainer()->get('entityManager');
     }
 }

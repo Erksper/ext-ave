@@ -10,35 +10,33 @@
         },
         "tipo": {
             "type": "enum",
-            "options": ["decicion", "factor", "canal", "plan"],
+            "options": ["factor", "decision", "canal", "plan"],
             "required": true
         },
         "impacto": {
             "type": "enum",
-            "options": ["positivo", "negativo"],
-            "required": false
+            "options": ["positivo", "negativo"]
         },
-        "teams": {
-            "type": "hasMany",
-            "entity": "Team",
-            "relationName": "entityTeam"
+        "predeterminado": {
+            "type": "bool",
+            "default": false
         }
     },
     "links": {
-        "aveInmueble": {
+        "team": {
             "type": "belongsTo",
-            "entity": "AveInmueble",
-            "key": "aveInmuebleId",
-            "foreign": "id"
-        },
-        "teams": {
-            "type": "hasMany",
             "entity": "Team",
-            "relationName": "entityTeam"
+            "foreign": "aveItems"
+        },
+        "avePrincipales": {
+            "type": "hasMany",
+            "entity": "AvePrincipal",
+            "foreign": "items",
+            "relationName": "ave_principal_item"
         }
     },
     "collection": {
         "orderBy": "name",
-        "order": "ASC"
+        "order": "asc"
     }
 }

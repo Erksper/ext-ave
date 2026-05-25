@@ -6,13 +6,11 @@
         },
         "numeroAve": {
             "type": "varchar",
-            "required": false,
             "maxLength": 50
         },
         "tipoIdentificacion": {
             "type": "enum",
-            "options": ["V", "E", "J", "P"],
-            "required": false
+            "options": ["V", "E", "J", "P"]
         },
         "identificacionCliente": {
             "type": "varchar",
@@ -63,83 +61,82 @@
             "maxLength": 500
         },
         "valorMax": {
-            "type": "currency",
-            "required": false
+            "type": "float"
         },
         "precioMax": {
-            "type": "currency",
-            "required": false
+            "type": "float"
         },
         "valorMin": {
-            "type": "currency",
-            "required": false
+            "type": "float"
         },
         "precioMin": {
-            "type": "currency",
-            "required": false
+            "type": "float"
         },
         "valorPromedio": {
-            "type": "currency",
-            "required": false
+            "type": "float"
         },
         "precioOriginal": {
-            "type": "currency",
-            "required": false
+            "type": "float"
         },
         "precioSugerido": {
-            "type": "currency",
-            "required": false
+            "type": "float"
         },
         "ajustePrecio": {
+            "type": "float"
+        },
+        "createdAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "modifiedAt": {
+            "type": "datetime",
+            "readOnly": true
+        },
+        "peso_ofertas": {
             "type": "float",
-            "required": false
+            "default": 70
         },
-        "assignedUser": {
-            "type": "belongsTo",
-            "entity": "User"
+        "peso_ventas": {
+            "type": "float",
+            "default": 30
         },
-        "teams": {
-            "type": "hasMany",
-            "entity": "Team",
-            "relationName": "entityTeam"
+        "rango_precio_min": {
+            "type": "float"
+        },
+        "rango_precio_max": {
+            "type": "float"
         }
     },
     "links": {
         "assignedUser": {
             "type": "belongsTo",
-            "entity": "User"
+            "entity": "User",
+            "foreign": "avePrincipales"
         },
         "aveInmueble": {
             "type": "belongsTo",
             "entity": "AveInmueble",
-            "key": "aveInmuebleId",
-            "foreign": "id"
+            "foreign": "avePrincipales"
         },
         "aveInmuebleReferencias": {
             "type": "hasMany",
             "entity": "AveInmuebleReferencia",
-            "foreign": "avePrincipalId",
-            "relationName": "avePrincipalReferencias"
+            "foreign": "avePrincipal"
         },
         "aveAnalisis": {
             "type": "hasMany",
             "entity": "AveAnalisis",
-            "foreign": "avePrincipalId",
-            "relationName": "avePrincipalAnalisis"
+            "foreign": "avePrincipal"
         },
-        "teams": {
+        "items": {
             "type": "hasMany",
-            "entity": "Team",
-            "relationName": "entityTeam"
-        }
-    },
-    "indexes": {
-        "numeroAve": {
-            "columns": ["numero_ave"]
+            "entity": "AveFactoresDecisionesCanalesPlan",
+            "foreign": "avePrincipales",
+            "relationName": "ave_principal_item"
         }
     },
     "collection": {
         "orderBy": "createdAt",
-        "order": "DESC"
+        "order": "desc"
     }
 }

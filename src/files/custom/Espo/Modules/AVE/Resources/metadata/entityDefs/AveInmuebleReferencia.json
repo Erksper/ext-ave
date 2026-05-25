@@ -22,32 +22,25 @@
             "options": ["Apartamento", "Casa", "Town-House", "Penthouse", "Casa Duplex", "Casa Bote", "Quinta", "Edificio", "Local Comercial", "Oficina", "Galpón", "Parcela"]
         },
         "valorReferencial": {
-            "type": "currency",
-            "required": false
+            "type": "float"
         },
         "areaTerreno": {
-            "type": "float",
-            "required": false
+            "type": "float"
         },
         "areaConstruida": {
-            "type": "float",
-            "required": false
+            "type": "float"
         },
         "antiguedad": {
-            "type": "int",
-            "required": false
+            "type": "int"
         },
         "habitaciones": {
-            "type": "int",
-            "required": false
+            "type": "int"
         },
         "banos": {
-            "type": "int",
-            "required": false
+            "type": "int"
         },
         "estacionamiento": {
-            "type": "int",
-            "required": false
+            "type": "int"
         },
         "piso": {
             "type": "varchar",
@@ -70,28 +63,32 @@
             "options": ["Vigilancia 24h", "Porton", "Cercado", "Otro"]
         },
         "valorm2": {
-            "type": "currency",
-            "required": false
+            "type": "float"
         },
         "descripcion": {
             "type": "text"
         },
-        "foto": {
-            "type": "image"
-        },
         "enlace": {
             "type": "varchar",
             "maxLength": 500
+        },
+        "foto": {
+            "type": "image"
+        },
+        "fotoId": {
+            "type": "foreignId",
+            "foreign": "foto.id"
         }
     },
     "links": {
         "avePrincipal": {
             "type": "belongsTo",
-            "entity": "AvePrincipal"
+            "entity": "AvePrincipal",
+            "foreign": "aveInmuebleReferencias"
         }
     },
     "collection": {
         "orderBy": "createdAt",
-        "order": "ASC"
+        "order": "asc"
     }
 }

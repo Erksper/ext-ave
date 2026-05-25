@@ -2,7 +2,7 @@
     "entity": true,
     "object": true,
     "importable": false,
-    "stream": true,
+    "stream": false,
     "disabled": false,
     "type": "Base",
     "tab": true,
@@ -10,16 +10,5 @@
     "aclPortal": false,
     "hasAssignedUser": true,
     "hasTeam": true,
-    "module": "Ave",
-    "layouts": {
-        "list": {
-            "rows": [
-                {"name": "numeroAve"},
-                {"name": "nombreCliente"},
-                {"name": "identificacionCliente"},
-                {"name": "assignedUser"},
-                {"name": "createdAt"}
-            ]
-        }
-    }
+    "module": "AVE"
 }

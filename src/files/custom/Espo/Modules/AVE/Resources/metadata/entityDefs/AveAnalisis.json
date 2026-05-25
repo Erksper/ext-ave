@@ -18,11 +18,12 @@
     "links": {
         "avePrincipal": {
             "type": "belongsTo",
-            "entity": "AvePrincipal"
+            "entity": "AvePrincipal",
+            "foreign": "aveAnalisis"
         }
     },
     "collection": {
         "orderBy": "tipo",
-        "order": "ASC"
+        "order": "asc"
     }
 }

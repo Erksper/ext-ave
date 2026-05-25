@@ -4,36 +4,24 @@ define('ave:views/ave-principal/detail', [
     'ave:views/ave-principal/modules/inmueble',
     'ave:views/ave-principal/modules/referencias',
     'ave:views/ave-principal/modules/foda',
-    'ave:views/ave-principal/modules/factores',
-    'ave:views/ave-principal/modules/decisiones',
+    'ave:views/ave-principal/modules/itemsManager',
     'ave:views/ave-principal/modules/precio',
     'ave:views/ave-principal/modules/preview'
-], function (
-    Dep,
-    TabsManager,
-    InmuebleManager,
-    ReferenciasManager,
-    FodaManager,
-    FactoresManager,
-    DecisionesManager,
-    PrecioManager,
-    PreviewManager
-) {
-
-    console.log('[AVE Detail View] Archivo cargado');
+], function (Dep, TabsManager, InmuebleManager, ReferenciasManager, FodaManager, ItemsManager, PrecioManager, PreviewManager) {
 
     return Dep.extend({
 
         template: 'ave:ave-principal/detail',
 
         // Estado global
-        aveId:       null,
-        aveData:     null,
+        aveId: null,
+        aveData: null,
         inmuebleData: null,
-        teamId:      null,
+        teamId: null,
 
         // Eventos
         events: {
+            // Navegación
             'click [data-action="volver"]': function () {
                 this.getRouter().navigate('#AvePrincipal', { trigger: true });
             },
@@ -46,15 +34,26 @@ define('ave:views/ave-principal/detail', [
             'click [data-action="toggle-panel"]': function (e) {
                 this.togglePanel(e);
             },
+            
+            // Pestaña 2 — Inmueble
             'click [data-action="nuevo-inmueble"]': function () {
                 this.inmuebleManager.abrirModalNuevo();
             },
             'click [data-action="cambiar-inmueble"]': function () {
                 this.inmuebleManager.limpiarSeleccion();
             },
+            'click [data-action="editar-inmueble"]': function () {
+                if (this.inmuebleManager.inmuebleActual) {
+                    this.inmuebleManager.abrirModalEditar(this.inmuebleManager.inmuebleActual);
+                }
+            },
+            
+            // Pestaña 3 — Situación Legal
             'change .ave-legal-chk': function (e) {
                 this.toggleNotaLegal(e);
             },
+            
+            // Pestañas 4 y 5 — Referencias
             'click #btn-add-promocion': function () {
                 this.referenciasManager.abrirModal('promocion', null);
             },
@@ -69,6 +68,8 @@ define('ave:views/ave-principal/detail', [
                 var $btn = $(e.currentTarget);
                 this.referenciasManager.eliminar($btn.data('tipo'), parseInt($btn.data('idx')));
             },
+            
+            // Pestaña 6 — FODA
             'click [data-action="nueva-foda"]': function () {
                 this.fodaManager.abrirModal();
             },
@@ -76,6 +77,8 @@ define('ave:views/ave-principal/detail', [
                 var $btn = $(e.currentTarget);
                 this.fodaManager.eliminar($btn.data('tipo'), $btn.data('idx'));
             },
+            
+            // Pestaña 7 — Factores
             'click [data-action="agregar-factor"]': function () {
                 this.factoresManager.agregarDesdeSelect();
             },
@@ -85,147 +88,193 @@ define('ave:views/ave-principal/detail', [
             'click [data-action="quitar-factor"]': function (e) {
                 this.factoresManager.quitar($(e.currentTarget).data('idx'));
             },
-            'input #valorReferencial, input #areaConstruida, input #ajustePrecio, input #precioOriginal': function () {
+            
+            // Pestaña 8 — Precio Sugerido
+            'click [data-action="recalcular-precios"]': function () {
                 this.precioManager.calcular();
             },
+            'change #pesoOfertas, input #ajustePrecio': function () {
+                this.precioManager.calcular();
+            },
+            
+            // Pestaña 9 — Decisiones
+            'click [data-action="agregar-decision"]': function () {
+                this.decisionesManager.agregarDesdeSelect();
+            },
+            'click [data-action="nueva-decision"]': function () {
+                this.decisionesManager.abrirModalNuevo();
+            },
+            'click [data-action="quitar-decision"]': function (e) {
+                this.decisionesManager.quitar($(e.currentTarget).data('idx'));
+            },
+            
+            // Pestaña 10 — Medios
+            'click [data-action="agregar-canal"]': function () {
+                this.canalesManager.agregarDesdeSelect();
+            },
+            'click [data-action="nuevo-canal"]': function () {
+                this.canalesManager.abrirModalNuevo();
+            },
+            'click [data-action="quitar-canal"]': function (e) {
+                this.canalesManager.quitar($(e.currentTarget).data('idx'));
+            },
+            
+            // Pestaña 11 — Plan de Trabajo
+            'click [data-action="agregar-plan"]': function () {
+                this.planesManager.agregarDesdeSelect();
+            },
+            'click [data-action="nuevo-plan"]': function () {
+                this.planesManager.abrirModalNuevo();
+            },
+            'click [data-action="quitar-plan"]': function (e) {
+                this.planesManager.quitar($(e.currentTarget).data('idx'));
+            },
+            
+            // Pestaña 12 — Vista Previa
             'click [data-action="generar-preview"]': function () {
                 this.previewManager.generar();
             },
-            'click [data-action="nueva-decision"]': function () {
-                this.decisionesManager.abrirModal('decicion');
-            },
-            'click [data-action="quitar-decision"]': function (e) {
-                this.decisionesManager.quitar('decicion', $(e.currentTarget).data('idx'));
-            },
-            'click [data-action="agregar-canal"]': function () {
-                this.decisionesManager.agregarCanalDesdeSelect();
-            },
-            'click [data-action="nuevo-canal"]': function () {
-                this.decisionesManager.abrirModalCanal();
-            },
-            'click [data-action="quitar-canal"]': function (e) {
-                this.decisionesManager.quitar('canal', $(e.currentTarget).data('idx'));
-            },
-            'click [data-action="nuevo-plan"]': function () {
-                this.decisionesManager.abrirModal('plan');
-            },
-            'click [data-action="quitar-plan"]': function (e) {
-                this.decisionesManager.quitar('plan', $(e.currentTarget).data('idx'));
+            
+            // Validación de email
+            'input #correoCliente': function () {
+                this.validarEmail();
             }
         },
 
+        // ─────────────────────────────────────────────────────────────
+        // Setup
+        // ─────────────────────────────────────────────────────────────
         setup: function () {
-            console.log('[AVE Detail View] setup() - aveId:', this.options.aveId);
             Dep.prototype.setup.call(this);
-
-            this.aveId = this.options.aveId;
-
+            console.log('detail.setup()');
+            
+            this.aveId = this.model.id;
             if (!this.aveId) {
-                console.error('[AVE Detail View] No se proporcionó ID de AVE');
                 Espo.Ui.error('ID de AVE no proporcionado');
                 this.getRouter().navigate('#AvePrincipal', { trigger: true });
                 return;
             }
-
+            
+            // Obtener team del usuario
+            var user = this.getUser();
+            this.teamId = (user.get('defaultTeamId') || (user.get('teamsIds') || [])[0]) || null;
+            
             // Inicializar managers
-            this.tabsManager       = new TabsManager(this);
-            this.inmuebleManager   = new InmuebleManager(this);
-            this.referenciasManager= new ReferenciasManager(this);
-            this.fodaManager       = new FodaManager(this);
-            this.factoresManager   = new FactoresManager(this);
-            this.decisionesManager = new DecisionesManager(this);
-            this.precioManager     = new PrecioManager(this);
-            this.previewManager    = new PreviewManager(this);
-
-            console.log('[AVE Detail View] Managers inicializados');
+            this.tabsManager = new TabsManager(this);
+            this.inmuebleManager = new InmuebleManager(this);
+            this.referenciasManager = new ReferenciasManager(this);
+            this.fodaManager = new FodaManager(this);
+            
+            // Managers genéricos
+            this.factoresManager = new ItemsManager(this, 'factor', {
+                labelSingular: 'factor',
+                tieneImpacto: true,
+                tieneDescripcion: true
+            });
+            this.decisionesManager = new ItemsManager(this, 'decision', {
+                labelSingular: 'decisión',
+                tieneImpacto: false,
+                tieneDescripcion: true
+            });
+            this.canalesManager = new ItemsManager(this, 'canal', {
+                labelSingular: 'medio',
+                tieneImpacto: false,
+                tieneDescripcion: false
+            });
+            this.planesManager = new ItemsManager(this, 'plan', {
+                labelSingular: 'plan',
+                tieneImpacto: false,
+                tieneDescripcion: true
+            });
+            
+            this.precioManager = new PrecioManager(this);
+            this.previewManager = new PreviewManager(this);
         },
 
         afterRender: function () {
-            console.log('[AVE Detail View] afterRender()');
             Dep.prototype.afterRender.call(this);
             this.cargarDatos();
         },
 
+        // ─────────────────────────────────────────────────────────────
+        // Carga de datos
+        // ─────────────────────────────────────────────────────────────
         cargarDatos: function () {
-            console.log('[AVE Detail View] cargarDatos() iniciando para aveId:', this.aveId);
             var self = this;
             this.$el.find('#ave-detail-loading').show();
             this.$el.find('#ave-detail-content').hide();
 
-            // Obtener team del usuario
-            var user = this.getUser();
-            this.teamId = (user.get('defaultTeamId') || (user.get('teamsIds') || [])[0]) || null;
-            console.log('[AVE Detail View] teamId del usuario:', this.teamId);
-
             Espo.Ajax.getRequest('AvePrincipal/action/getOrCreate', { id: this.aveId })
                 .then(function (response) {
-                    console.log('[AVE Detail View] Respuesta getOrCreate:', response);
+                    console.log('Respuesta completa:', response);
                     if (!response.success) throw new Error(response.error || 'Error al cargar');
-
-                    self.aveData      = response.data.ave;
+                    
+                    self.aveData = response.data.ave;
                     self.inmuebleData = response.data.inmueble;
-
+                    
                     self.$el.find('#ave-detail-loading').hide();
                     self.$el.find('#ave-detail-content').show();
-                    self.$el.find('#ave-subtitle').text(
-                        self.aveData.numeroAve
-                            ? 'N° ' + self.aveData.numeroAve
-                            : 'Sin número asignado'
-                    );
-
+                    
+                    var numero = self.aveData.numeroAve || 'Sin número asignado';
+                    self.$el.find('#ave-subtitle').text(numero);
+                    
+                    // Cargar catálogos de items
+                    self.factoresManager.cargarCatalogo(self.teamId);
+                    self.decisionesManager.cargarCatalogo(self.teamId);
+                    self.canalesManager.cargarCatalogo(self.teamId);
+                    self.planesManager.cargarCatalogo(self.teamId);
+                    
                     self.poblarFormulario(response.data);
                 })
                 .catch(function (err) {
-                    console.error('[AVE Detail View] Error en getOrCreate:', err);
+                    console.error('Error en cargarDatos:', err);
                     self.$el.find('#ave-detail-loading').hide();
-                    Espo.Ui.error('Error al cargar el AVE');
-                    setTimeout(function () {
-                        self.getRouter().navigate('#AvePrincipal', { trigger: true });
-                    }, 1500);
+                    Espo.Ui.error('Error al cargar el AVE: ' + (err.message || ''));
                 });
         },
 
+        // ─────────────────────────────────────────────────────────────
+        // Poblar formulario
+        // ─────────────────────────────────────────────────────────────
         poblarFormulario: function (data) {
-            console.log('[AVE Detail View] poblarFormulario() con data:', data);
             var ave = data.ave || {};
-
-            // Pestaña 1
+            
+            // Pestaña 1 — Datos Generales
             this.$el.find('#numeroAve').val(ave.numeroAve || '');
             this.$el.find('#tipoIdentificacion').val(ave.tipoIdentificacion || '');
             this.$el.find('#identificacionCliente').val(ave.identificacionCliente || '');
             this.$el.find('#nombreCliente').val(ave.nombreCliente || '');
             this.$el.find('#correoCliente').val(ave.correoCliente || '');
             this.$el.find('#telefonoCliente').val(ave.telefonoCliente || '');
-
-            // Pestaña 2
+            
+            // Pestaña 2 — Inmueble
             this.inmuebleManager.inicializarBuscador();
             if (data.inmueble) {
-                console.log('[AVE Detail View] Mostrando inmueble existente:', data.inmueble);
                 this.inmuebleManager.mostrarInmueble(data.inmueble);
             }
-
-            // Pestaña 3
+            
+            // Pestaña 3 — Situación Legal
             this.poblarLegal(ave);
-
-            // Pestañas 4 y 5
+            
+            // Pestañas 4 y 5 — Referencias
             this.referenciasManager.cargar(data.referencias || []);
-
-            // Pestaña 6
+            
+            // Pestaña 6 — FODA
             this.fodaManager.cargar(data.analisis || []);
-
-            // Pestañas 7, 9, 10, 11
-            this.factoresManager.cargarCatalogo(this.teamId);
-            this.decisionesManager.cargarCatalogos(this.teamId);
-
+            
+            // Pestañas 7, 9, 10, 11 — Items
             this.factoresManager.cargarItems(data.factores || []);
-            this.decisionesManager.cargarItems(data.decisiones || [], data.canales || [], data.planes || []);
-
-            // Pestaña 8
+            this.decisionesManager.cargarItems(data.decisiones || []);
+            this.canalesManager.cargarItems(data.canales || []);
+            this.planesManager.cargarItems(data.planes || []);
+            
+            // Pestaña 8 — Precios
             this.precioManager.poblar(ave);
-
-            console.log('[AVE Detail View] Formulario poblado completamente');
         },
 
+        // ─────────────────────────────────────────────────────────────
+        // Pestaña 3 — Legal
+        // ─────────────────────────────────────────────────────────────
         poblarLegal: function (ave) {
             var campos = [
                 { chk: 'chk-cedulaCatastral',   nota: 'nota-cedCatNota',   val: 'cedCatNota',   bool: 'cedulaCatastral' },
@@ -233,21 +282,23 @@ define('ave:views/ave-principal/detail', [
                 { chk: 'chk-solvenciaMunicipal', nota: 'nota-solMunNota',   val: 'solMunNota',   bool: 'solvenciaMunicipal' },
                 { chk: 'chk-comentarioLegal',    nota: 'nota-comLegNota',   val: 'comLegNota',   bool: 'comentarioLegal' }
             ];
-
+            
             campos.forEach(function (c) {
                 var checked = !!ave[c.bool];
                 this.$el.find('#' + c.chk).prop('checked', checked);
                 if (checked) {
                     this.$el.find('#' + c.nota).show();
                     this.$el.find('#' + c.val).val(ave[c.val] || '');
+                } else {
+                    this.$el.find('#' + c.nota).hide();
                 }
             }.bind(this));
         },
 
         toggleNotaLegal: function (e) {
-            var $chk  = $(e.currentTarget);
+            var $chk = $(e.currentTarget);
             var notaId = $chk.data('nota');
-            var $nota  = this.$el.find('#' + notaId);
+            var $nota = this.$el.find('#' + notaId);
             if ($chk.is(':checked')) {
                 $nota.slideDown(200);
             } else {
@@ -255,11 +306,14 @@ define('ave:views/ave-principal/detail', [
             }
         },
 
+        // ─────────────────────────────────────────────────────────────
+        // Toggle panel
+        // ─────────────────────────────────────────────────────────────
         togglePanel: function (e) {
             var $header = $(e.currentTarget);
-            var $body   = $header.closest('.ave-panel').find('.ave-panel-body');
-            var $icon   = $header.find('.fa-chevron-down, .fa-chevron-up');
-
+            var $body = $header.closest('.ave-panel').find('.ave-panel-body');
+            var $icon = $header.find('.fa-chevron-down, .fa-chevron-up');
+            
             if ($body.is(':visible')) {
                 $body.slideUp('fast');
                 $icon.removeClass('fa-chevron-up').addClass('fa-chevron-down');
@@ -271,83 +325,104 @@ define('ave:views/ave-principal/detail', [
             }
         },
 
+        // ─────────────────────────────────────────────────────────────
+        // Validar email
+        // ─────────────────────────────────────────────────────────────
+        validarEmail: function () {
+            var email = this.$el.find('#correoCliente').val().trim();
+            var $help = this.$el.find('#emailHelp');
+            var regex = /^[^\s@]+@([^\s@.,]+\.)+[^\s@.,]{2,}$/;
+            if (email && !regex.test(email)) {
+                $help.show();
+                return false;
+            } else {
+                $help.hide();
+                return true;
+            }
+        },
+
+        // ─────────────────────────────────────────────────────────────
+        // Guardar
+        // ─────────────────────────────────────────────────────────────
         guardar: function () {
-            console.log('[AVE Detail View] guardar() iniciado');
             var self = this;
 
-            if (!this.$el.find('#nombreCliente').val().trim()) {
+            // Validar nombre
+            var nombreCliente = this.$el.find('#nombreCliente').val().trim();
+            if (!nombreCliente) {
                 Espo.Ui.warning('El nombre del cliente es requerido');
                 this.tabsManager.activarTab('tab-1');
                 this.$el.find('#nombreCliente').focus();
                 return;
             }
 
-            var $btn  = this.$el.find('[data-action="guardar"]');
-            var orig  = $btn.html();
+            // Validar correo si está presente
+            var email = this.$el.find('#correoCliente').val().trim();
+            if (email && !this.validarEmail()) {
+                Espo.Ui.warning('Ingrese un correo electrónico válido');
+                this.tabsManager.activarTab('tab-1');
+                this.$el.find('#correoCliente').focus();
+                return;
+            }
+
+            var $btn = this.$el.find('[data-action="guardar"]');
+            var orig = $btn.html();
             $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Guardando...');
 
             var payload = {
                 aveId: this.aveId,
-
                 datosGenerales: {
-                    numeroAve:             this.$el.find('#numeroAve').val(),
-                    tipoIdentificacion:    this.$el.find('#tipoIdentificacion').val(),
+                    numeroAve: this.$el.find('#numeroAve').val(),
+                    tipoIdentificacion: this.$el.find('#tipoIdentificacion').val(),
                     identificacionCliente: this.$el.find('#identificacionCliente').val(),
-                    nombreCliente:         this.$el.find('#nombreCliente').val(),
-                    correoCliente:         this.$el.find('#correoCliente').val(),
-                    telefonoCliente:       this.$el.find('#telefonoCliente').val()
+                    nombreCliente: nombreCliente,
+                    correoCliente: email,
+                    telefonoCliente: this.$el.find('#telefonoCliente').val()
                 },
-
                 aveInmuebleId: this.inmuebleManager.getInmuebleId(),
-
                 legal: {
-                    cedulaCatastral:   this.$el.find('#chk-cedulaCatastral').is(':checked'),
-                    cedCatNota:        this.$el.find('#cedCatNota').val(),
+                    cedulaCatastral: this.$el.find('#chk-cedulaCatastral').is(':checked'),
+                    cedCatNota: this.$el.find('#cedCatNota').val(),
                     registroPropiedad: this.$el.find('#chk-registroPropiedad').is(':checked'),
-                    regProNota:        this.$el.find('#regProNota').val(),
-                    solvenciaMunicipal:this.$el.find('#chk-solvenciaMunicipal').is(':checked'),
-                    solMunNota:        this.$el.find('#solMunNota').val(),
-                    comentarioLegal:   this.$el.find('#chk-comentarioLegal').is(':checked'),
-                    comLegNota:        this.$el.find('#comLegNota').val()
+                    regProNota: this.$el.find('#regProNota').val(),
+                    solvenciaMunicipal: this.$el.find('#chk-solvenciaMunicipal').is(':checked'),
+                    solMunNota: this.$el.find('#solMunNota').val(),
+                    comentarioLegal: this.$el.find('#chk-comentarioLegal').is(':checked'),
+                    comLegNota: this.$el.find('#comLegNota').val()
                 },
-
-                referencias:  this.referenciasManager.getData(),
-                analisis:     this.fodaManager.getData(),
-                factores:     this.factoresManager.getData(),
-                decisiones:   this.decisionesManager.getData('decicion'),
-                canales:      this.decisionesManager.getData('canal'),
-                planes:       this.decisionesManager.getData('plan'),
-
+                referencias: this.referenciasManager.getData(),
+                analisis: this.fodaManager.getData(),
+                factores: this.factoresManager.getData(),
+                decisiones: this.decisionesManager.getData(),
+                canales: this.canalesManager.getData(),
+                planes: this.planesManager.getData(),
                 precio: {
-                    valorMax:      parseFloat(this.$el.find('#valorMax').val())      || null,
-                    precioMax:     parseFloat(this.$el.find('#precioMax').val())     || null,
-                    valorMin:      parseFloat(this.$el.find('#valorMin').val())      || null,
-                    precioMin:     parseFloat(this.$el.find('#precioMin').val())     || null,
+                    valorMax: parseFloat(this.$el.find('#valorMax').val()) || null,
+                    precioMax: parseFloat(this.$el.find('#precioMax').val()) || null,
+                    valorMin: parseFloat(this.$el.find('#valorMin').val()) || null,
+                    precioMin: parseFloat(this.$el.find('#precioMin').val()) || null,
                     valorPromedio: parseFloat(this.$el.find('#valorPromedio').val()) || null,
-                    precioOriginal:parseFloat(this.$el.find('#precioOriginal').val())|| null,
-                    precioSugerido:parseFloat(this.$el.find('#precioSugerido').val())|| null,
-                    ajustePrecio:  parseFloat(this.$el.find('#ajustePrecio').val())  || null
+                    precioOriginal: parseFloat(this.$el.find('#precioOriginal').val()) || null,
+                    precioSugerido: parseFloat(this.$el.find('#precioSugerido').val()) || null,
+                    ajustePrecio: parseFloat(this.$el.find('#ajustePrecio').val()) || null,
+                    pesoOfertas: parseFloat(this.$el.find('#pesoOfertas').val()) || null   // <-- Agregar esta línea
                 }
             };
 
-            console.log('[AVE Detail View] Payload a enviar:', payload);
+            console.log('Payload a enviar:', payload);
+            console.log('Precio payload:', payload.precio);
 
             Espo.Ajax.postRequest('AvePrincipal/action/guardar', payload)
                 .then(function (response) {
-                    console.log('[AVE Detail View] Respuesta guardar:', response);
                     if (response.success) {
                         Espo.Ui.success('AVE guardado correctamente');
-                        self.$el.find('#ave-subtitle').text(
-                            payload.datosGenerales.numeroAve
-                                ? 'N° ' + payload.datosGenerales.numeroAve
-                                : 'Sin número asignado'
-                        );
+                        self.$el.find('#ave-subtitle').text(payload.datosGenerales.numeroAve || 'Sin número asignado');
                     } else {
                         Espo.Ui.error(response.error || 'Error al guardar');
                     }
                 })
                 .catch(function (error) {
-                    console.error('[AVE Detail View] Error en guardar:', error);
+                    console.error('Error en la petición:', error);
                     Espo.Ui.error('Error al guardar el AVE');
                 })
                 .finally(function () {
@@ -355,13 +430,18 @@ define('ave:views/ave-principal/detail', [
                 });
         },
 
+        // ─────────────────────────────────────────────────────────────
+        // Helper escape
+        // ─────────────────────────────────────────────────────────────
         escape: function (text) {
-            if (text === null || text === undefined) return '';
+            if (!text) return '';
             return String(text).replace(/[&<>"']/g, function (m) {
                 return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
             });
         },
 
-        data: function () { return {}; }
+        data: function () {
+            return {};
+        }
     });
 });
