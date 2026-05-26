@@ -30,9 +30,19 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         var referencias = view.referenciasManager ? view.referenciasManager.getData() : [];
         var referenciasPromocion = referencias.filter(function(r) { return r.tipo === 'promocion'; });
         var referenciasVendidos = referencias.filter(function(r) { return r.tipo === 'vendido'; });
-        var analisis = view.fodaManager ? view.fodaManager.getData() : [];
-        var fortalezas = analisis.filter(function(a) { return a.tipo === 'fortaleza'; });
-        var debilidades = analisis.filter(function(a) { return a.tipo === 'debilidad'; });
+        
+        // FODA - CORREGIDO: usar getFodaData() o acceder directamente a los items
+        var analisisData = { fortaleza: [], debilidad: [] };
+        if (view.fodaManager) {
+            // Acceder directamente a los items del FODA
+            analisisData = {
+                fortaleza: view.fodaManager.items ? view.fodaManager.items.fortaleza || [] : [],
+                debilidad: view.fodaManager.items ? view.fodaManager.items.debilidad || [] : []
+            };
+        }
+        var fortalezas = analisisData.fortaleza;
+        var debilidades = analisisData.debilidad;
+        
         var factores = view.factoresManager ? view.factoresManager.getData() : [];
         var decisiones = view.decisionesManager ? view.decisionesManager.getData() : [];
         var canales = view.canalesManager ? view.canalesManager.getData() : [];
@@ -64,6 +74,12 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             solMunNota: view.$el.find('#solMunNota').val(),
             comentarioLegal: view.$el.find('#chk-comentarioLegal').is(':checked'),
             comLegNota: view.$el.find('#comLegNota').val()
+        };
+
+        // Helper para formatear números sin decimales
+        var formatPrice = function (n) {
+            if (!n || isNaN(n)) return '0';
+            return Math.round(parseFloat(n)).toLocaleString('es-VE');
         };
 
         // Construir HTML del reporte
@@ -180,7 +196,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
                 { label: 'Habitaciones / Baños', get: function(r) { return (r.habitaciones || '-') + ' / ' + (r.banos || '-'); } },
                 { label: 'Estacionamiento', get: function(r) { return r.estacionamiento || '-'; } },
                 { label: 'Terraza', get: function(r) { return r.terraza ? 'Sí' : 'No'; } },
-                { label: 'Valor (USD)', get: function(r) { return r.valorReferencial ? '$ ' + r.valorReferencial.toLocaleString() : '-'; } },
+                { label: 'Valor (USD)', get: function(r) { return r.valorReferencial ? '$ ' + formatPrice(r.valorReferencial) : '-'; } },
                 { label: 'USD x M²', get: function(r) { return r.valorm2 ? '$ ' + r.valorm2.toFixed(2) : '-'; } },
                 { label: 'Acabados', get: function(r) { return r.acabados || '-'; } }
             ];
@@ -231,7 +247,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             for (var i = 0; i < referenciasVendidos.length; i++) {
                 html += '<th style="padding: 8px; border: 1px solid #ddd;">REF ' + (i + 1) + '</th>';
             }
-            html += '<tr></thead><tbody>';
+            html += '</tr></thead><tbody>';
 
             for (var r = 0; r < rows.length; r++) {
                 html += '<tr>';
@@ -267,7 +283,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         }
 
         // ─────────────────────────────────────────────────────────────
-        // FODA
+        // FODA - CORREGIDO
         // ─────────────────────────────────────────────────────────────
         if (fortalezas.length > 0 || debilidades.length > 0) {
             html += '<div style="margin-bottom: 20px;">';
@@ -279,8 +295,9 @@ define('ave:views/ave-principal/modules/preview', [], function () {
                 html += '<p>No hay fortalezas registradas</p>';
             } else {
                 fortalezas.forEach(function(f) {
-                    html += '<div><strong>' + this.escape(f.name) + '</strong>';
-                    if (f.detalle) html += '<br><small>' + this.escape(f.detalle) + '</small>';
+                    html += '<div style="margin-bottom: 12px;">';
+                    html += '<strong>' + this.escape(f.tituloName) + '</strong>';
+                    if (f.descripcion) html += '<br><small style="color: #666;">' + this.escape(f.descripcion) + '</small>';
                     html += '</div>';
                 }.bind(this));
             }
@@ -291,8 +308,9 @@ define('ave:views/ave-principal/modules/preview', [], function () {
                 html += '<p>No hay debilidades registradas</p>';
             } else {
                 debilidades.forEach(function(d) {
-                    html += '<div><strong>' + this.escape(d.name) + '</strong>';
-                    if (d.detalle) html += '<br><small>' + this.escape(d.detalle) + '</small>';
+                    html += '<div style="margin-bottom: 12px;">';
+                    html += '<strong>' + this.escape(d.tituloName) + '</strong>';
+                    if (d.descripcion) html += '<br><small style="color: #666;">' + this.escape(d.descripcion) + '</small>';
                     html += '</div>';
                 }.bind(this));
             }
@@ -328,20 +346,20 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         }
 
         // ─────────────────────────────────────────────────────────────
-        // ANÁLISIS INTEGRAL Y PRECIO
+        // ANÁLISIS INTEGRAL Y PRECIO - SIN DECIMALES
         // ─────────────────────────────────────────────────────────────
         html += '<div style="margin-bottom: 20px;">';
         html += '<h3 style="color: #B8A279;">Análisis Integral</h3>';
         html += '<table style="width: 100%; border-collapse: collapse;">';
         html += '<tr style="background: #f5f5f5;"><td style="padding: 8px;"><strong>Síntesis de precio unitario Mts2</strong></td><td style="padding: 8px;"><strong>USD x m²</strong></td><td style="padding: 8px;"><strong>Precio (USD)</strong></td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Máximo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + (valorMax > 0 ? valorMax.toFixed(2) : '0,00') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + (precioMax > 0 ? precioMax.toLocaleString() : '0,00') + '</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Mínimo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + (valorMin > 0 ? valorMin.toFixed(2) : '0,00') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + (precioMin > 0 ? precioMin.toLocaleString() : '0,00') + '</td></tr>';
-        html += '<tr><td style="padding: 8px;">Precio Promedio de salida al mercado</td><td style="padding: 8px;">$ ' + (valorPromedio > 0 ? valorPromedio.toFixed(2) : '0,00') + '</td><td style="padding: 8px;">$ ' + (precioOriginal > 0 ? precioOriginal.toLocaleString() : '0,00') + '</td></tr>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Máximo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + (valorMax > 0 ? valorMax.toFixed(2) : '0,00') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPrice(precioMax) + '</td></tr>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Mínimo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + (valorMin > 0 ? valorMin.toFixed(2) : '0,00') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPrice(precioMin) + '</td></tr>';
+        html += '<tr><td style="padding: 8px;">Precio Promedio de salida al mercado</td><td style="padding: 8px;">$ ' + (valorPromedio > 0 ? valorPromedio.toFixed(2) : '0,00') + '</td><td style="padding: 8px;">$ ' + formatPrice(precioOriginal) + '</td></tr>';
         html += '</table>';
 
         html += '<div style="background: #B8A279; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-top: 15px;">';
-        html += '<strong>Rango de Precio para salir al mercado: entre $ ' + (precioMin > 0 ? precioMin.toLocaleString() : '0') + ' y $ ' + (precioMax > 0 ? precioMax.toLocaleString() : '0') + '</strong>';
-        html += '<br><span style="font-size: 14px;">Precio Sugerido: $ ' + (precioOriginal > 0 ? precioOriginal.toLocaleString() : '0,00') + ' (Ajuste: ' + ajustePrecio + '%)</span>';
+        html += '<strong>Rango de Precio para salir al mercado: entre $ ' + formatPrice(precioMin) + ' y $ ' + formatPrice(precioMax) + '</strong>';
+        html += '<br><span style="font-size: 14px;">Precio Sugerido: $ ' + formatPrice(precioOriginal) + ' (Ajuste: ' + ajustePrecio + '%)</span>';
         html += '<br><span style="font-size: 12px;">Ponderación: ' + pesoOfertas + '% Ofertas / ' + pesoVentas + '% Ventas</span>';
         html += '</div>';
         html += '</div>';
@@ -389,7 +407,6 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         html += '<div style="margin-top: 30px; padding: 15px; background: #f9f9f9; border-radius: 8px; text-align: center;">';
         html += '<p style="margin-bottom: 10px;">Sr(a) ' + this.escape(ave.nombreCliente || 'Cliente') + ', nuestra mayor satisfacción es poner a su disposición la información necesaria y datos referenciales que le sirvan de apoyo para tomar la mejor decisión en la venta de su inmueble y poder contribuir en el bienestar de su familia, siempre a sus órdenes para brindarle el mejor servicio inmobiliario.</p>';
         html += '</div>';
-
 
         // ─────────────────────────────────────────────────────────────
         // DATOS DEL USUARIO / ASESOR
