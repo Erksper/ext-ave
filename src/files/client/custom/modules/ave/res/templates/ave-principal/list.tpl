@@ -9,7 +9,7 @@
                 <i class="fas fa-file-invoice-dollar"></i>
             </div>
             <div>
-                <h1 class="ave-page-title">Avalúos de Inmuebles</h1>
+                <h1 class="ave-page-title">Análisis para una Venta Exitosa</h1>
                 <p class="ave-page-subtitle">Gestión de reportes de avalúo</p>
             </div>
         </div>
@@ -21,10 +21,8 @@
     </div>
 
     <!-- Filtros -->
-    <div class="ave-card" style="margin-bottom: 20px;">
-        <div class="ave-card-header">
-            <i class="fas fa-filter"></i> Filtros
-        </div>
+    <div class="ave-card" style="margin-bottom:20px;">
+        <div class="ave-card-header"><i class="fas fa-filter"></i> Filtros</div>
         <div class="ave-card-body">
             <div class="ave-filtros-grid">
                 <div>
@@ -43,6 +41,15 @@
                     <label class="ave-form-label">Asesor</label>
                     <input type="text" id="filtro-asesor" class="ave-form-control" placeholder="Nombre del asesor...">
                 </div>
+                <div>
+                    <label class="ave-form-label">Estado</label>
+                    <select id="filtro-status" class="ave-form-control">
+                        <option value="">Todos</option>
+                        <option value="elaboracion">En Elaboración</option>
+                        <option value="impresion">Listo para Imprimir</option>
+                        <option value="aprobado">Aprobado</option>
+                    </select>
+                </div>
             </div>
             <div class="ave-filtro-actions">
                 <button class="ave-btn ave-btn-primary" data-action="filtrar">
@@ -55,56 +62,57 @@
         </div>
     </div>
 
+    <!-- Leyenda de estados -->
+    <div class="ave-lista-leyenda">
+        <span class="ave-leyenda-titulo"><i class="fas fa-info-circle"></i> <strong>Estados:</strong></span>
+        <span class="ave-leyenda-badge ave-leyenda-elaboracion">En Elaboración</span>
+        <span class="ave-leyenda-badge ave-leyenda-impresion">Listo para Imprimir</span>
+        <span class="ave-leyenda-badge ave-leyenda-aprobado">Aprobado</span>
+    </div>
+
     <!-- Loading -->
-    <div id="ave-list-loading" class="ave-loading" style="display: none;">
+    <div id="ave-list-loading" class="ave-loading" style="display:none;">
         <div class="ave-spinner"></div>
         <p class="ave-loading-title">Cargando avalúos...</p>
     </div>
 
     <!-- Lista -->
     <div id="ave-list-content">
-
-        <!-- Meta fila -->
         <div class="ave-meta-row">
             <div class="ave-contador">
                 Total: <strong id="ave-total-count">0</strong> avalúos
             </div>
         </div>
 
-        <!-- Tabla -->
         <div class="ave-table-wrapper">
             <table class="ave-table">
                 <thead>
                     <tr>
-                        <th style="width: 50px; text-align: center;">#</th>
+                        <th style="width:50px; text-align:center;">#</th>
                         <th>N° AVE</th>
                         <th>Cliente</th>
                         <th>Identificación</th>
                         <th>Inmueble</th>
                         <th>Asesor</th>
                         <th>Fecha</th>
-                        <th style="width: 80px; text-align: center;">Acción</th>
+                        <th style="width:120px; text-align:center;">Estado</th>
+                        <th style="width:160px; text-align:center;">Acciones</th>
                     </tr>
                 </thead>
-                <tbody id="ave-list-tbody">
-                    <!-- Filas generadas dinámicamente -->
-                </tbody>
+                <tbody id="ave-list-tbody"></tbody>
             </table>
 
-            <!-- No data -->
-            <div id="ave-no-data" class="ave-no-data" style="display: none;">
+            <div id="ave-no-data" class="ave-no-data" style="display:none;">
                 <i class="fas fa-file-invoice-dollar"></i>
                 <h3>No hay avalúos registrados</h3>
                 <p>Cree un nuevo AVE para comenzar.</p>
             </div>
 
-            <!-- Paginación -->
-            <div class="ave-paginacion" id="ave-paginacion" style="display: none;">
-                <span class="ave-page-info" id="ave-page-info" style="font-size: 13px; color: var(--ave-text-muted);"></span>
+            <div class="ave-paginacion" id="ave-paginacion" style="display:none;">
+                <span class="ave-page-info" id="ave-page-info" style="font-size:13px; color:var(--ave-text-muted);"></span>
                 <div class="ave-pag-controles" id="ave-pag-controles"></div>
             </div>
         </div>
-
     </div>
 
 </div>

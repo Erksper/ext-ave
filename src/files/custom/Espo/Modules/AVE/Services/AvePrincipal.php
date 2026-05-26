@@ -46,21 +46,26 @@ class AvePrincipal extends RecordService
     public function getLista(
         int $pagina, int $porPagina,
         string $numero, string $cliente,
-        string $identificacion, string $asesor
+        string $identificacion, string $asesor,
+        string $status = ''
     ): array {
-        // Versión simplificada para depurar
+        $GLOBALS['log']->info('=== getLista SIMPLIFICADO ===');
+        
         $repo = $this->entityManager->getRDBRepository('AvePrincipal');
         
-        // Obtener TODOS los registros (sin paginación, sin order)
-        $items = $repo->find();
+        // VERSIÓN SIMPLIFICADA - SIN FILTROS, SIN PAGINACIÓN
+        // Solo obtener los primeros 100 registros
+        $items = $repo->limit(0, 100)->find();
+        
+        $GLOBALS['log']->info('Registros encontrados (sin filtros): ' . $items->count());
         
         $list = [];
         foreach ($items as $item) {
             $list[] = [
-                'id'            => $item->getId(),
-                'numeroAve'     => $item->get('numeroAve'),
-                'nombreCliente' => $item->get('nombreCliente'),
-                'createdAt'     => $item->get('createdAt'),
+                'id'                    => $item->getId(),
+                'numeroAve'             => $item->get('numeroAve'),
+                'nombreCliente'         => $item->get('nombreCliente'),
+                'createdAt'             => $item->get('createdAt'),
             ];
         }
         
@@ -72,6 +77,283 @@ class AvePrincipal extends RecordService
                 'totalPaginas' => 1
             ]
         ];
+    }
+
+    public function cambiarStatus(string $aveId, string $status): array
+    {
+        $allowed = ['elaboracion', 'impresion', 'aprobado'];
+        if (!in_array($status, $allowed)) {
+            throw new BadRequest("Estado inválido: $status");
+        }
+
+        $em     = $this->entityManager;
+        $entity = $em->getEntity('AvePrincipal', $aveId);
+        if (!$entity) throw new NotFound("AvePrincipal '$aveId' no encontrado.");
+
+        $entity->set('status', $status);
+        $em->saveEntity($entity);
+
+        return ['success' => true, 'status' => $status];
+    }
+
+    public function generarPdf(string $aveId): void
+    {
+        $em     = $this->entityManager;
+        $entity = $em->getEntity('AvePrincipal', $aveId);
+        if (!$entity) throw new NotFound("AvePrincipal '$aveId' no encontrado.");
+
+        // Recolectar todos los datos (misma lógica que getOrCreate)
+        $data = $this->getOrCreate($aveId);
+        $ave      = $data['data']['ave'];
+        $inmueble = $data['data']['inmueble'] ?? [];
+        $referencias   = $data['data']['referencias']  ?? [];
+        $analisis      = $data['data']['analisis']      ?? [];
+        $factores      = $data['data']['factores']      ?? [];
+        $decisiones    = $data['data']['decisiones']    ?? [];
+        $canales       = $data['data']['canales']       ?? [];
+        $planes        = $data['data']['planes']        ?? [];
+
+        $html = $this->buildPdfHtml($ave, $inmueble, $referencias, $analisis, $factores, $decisiones, $canales, $planes);
+
+        // Usar dompdf si está disponible, si no hacer output HTML imprimible
+        $rootDir = dirname(__DIR__, 5);
+        $dompdfPath = $rootDir . '/vendor/dompdf/dompdf/src/Dompdf.php';
+
+        if (file_exists($dompdfPath)) {
+            require_once $rootDir . '/vendor/autoload.php';
+            $dompdf = new \Dompdf\Dompdf(['isRemoteEnabled' => true]);
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A4', 'portrait');
+            $dompdf->render();
+            $filename = 'AVE-' . ($ave['numeroAve'] ?? $aveId) . '.pdf';
+            $dompdf->stream($filename, ['Attachment' => true]);
+        } else {
+            // Fallback: HTML con estilos de impresión
+            header('Content-Type: text/html; charset=UTF-8');
+            header('Content-Disposition: inline; filename="AVE.html"');
+            echo $html;
+        }
+        exit;
+    }
+
+    private function buildPdfHtml(array $ave, array $inmueble, array $referencias, array $analisis, array $factores, array $decisiones, array $canales, array $planes): string
+    {
+        $nombreCliente = htmlspecialchars($ave['nombreCliente'] ?? 'Cliente');
+        $numeroAve     = htmlspecialchars($ave['numeroAve']     ?? 'N/A');
+        $fecha         = date('d/m/Y');
+
+        $refPromocion = array_filter($referencias, fn($r) => ($r['tipo'] ?? '') === 'promocion');
+        $refVendidos  = array_filter($referencias, fn($r) => ($r['tipo'] ?? '') === 'vendido');
+        $fortalezas   = array_filter($analisis,    fn($a) => ($a['tipo'] ?? '') === 'fortaleza');
+        $debilidades  = array_filter($analisis,    fn($a) => ($a['tipo'] ?? '') === 'debilidad');
+
+        $fmtUSD = fn($v) => $v ? '$ ' . number_format((float)$v, 2, '.', ',') : '-';
+        $esc    = fn($t) => htmlspecialchars((string)($t ?? ''), ENT_QUOTES);
+
+        $html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">';
+        $html .= '<style>
+            body { font-family: Arial, sans-serif; font-size: 13px; color: #363438; margin: 0; padding: 20px; }
+            h1 { color: #B8A279; text-align: center; font-size: 20px; margin-bottom: 4px; }
+            h2 { color: #555; text-align: center; font-size: 15px; margin: 0 0 20px; }
+            h3 { color: #B8A279; font-size: 14px; margin: 20px 0 8px; border-bottom: 2px solid #B8A279; padding-bottom: 4px; }
+            h4 { font-size: 13px; margin: 12px 0 6px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 12px; }
+            th { background: #B8A279; color: white; padding: 8px; text-align: left; }
+            td { padding: 7px 8px; border-bottom: 1px solid #eee; }
+            tr:nth-child(even) td { background: #fafafa; }
+            .intro { background: #f8f9fa; border-left: 4px solid #B8A279; padding: 14px 18px; margin-bottom: 20px; line-height: 1.6; text-align: justify; }
+            .ref-num { color: #B8A279; font-weight: 700; }
+            .precio-box { background: #B8A279; color: white; padding: 16px; border-radius: 6px; text-align: center; margin: 12px 0; }
+            .precio-box strong { font-size: 20px; display: block; margin-bottom: 4px; }
+            .foda-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+            .fortaleza-col { background: #d4edda; border-radius: 6px; padding: 12px; }
+            .debilidad-col { background: #f8d7da; border-radius: 6px; padding: 12px; }
+            .foda-item { margin-bottom: 8px; }
+            .foda-item strong { display: block; font-size: 12px; }
+            .foda-item span { font-size: 11px; color: #555; }
+            .legal-si { color: #27ae60; font-weight: 700; }
+            .legal-no { color: #e74c3c; }
+            .badge-positivo { color: #27ae60; font-weight: 700; }
+            .badge-negativo { color: #e74c3c; font-weight: 700; }
+            .canal-chip { display: inline-block; background: #e0e0e0; padding: 3px 8px; border-radius: 12px; margin: 2px; font-size: 11px; }
+            .footer { margin-top: 30px; border-top: 2px solid #B8A279; padding-top: 16px; text-align: center; color: #999; font-size: 11px; }
+            @media print { body { padding: 0; } }
+        </style></head><body>';
+
+        // Título
+        $html .= '<h1>ANÁLISIS PARA UNA VENTA EXITOSA</h1>';
+        $html .= '<h2>' . $nombreCliente . '</h2>';
+
+        // Intro
+        $html .= '<div class="intro">Estimado(a) ' . $nombreCliente . ', reciba de todo el equipo que labora en nuestras oficinas un cordial saludo de respeto hacia usted por brindarnos su confianza. Le presentamos el siguiente Análisis de Venta Exitoso correspondiente a su propiedad; con el propósito de mostrarle referencias actuales del mercado inmobiliario que le ayuden a tomar la mejor decisión sobre el valor promocional de su inmueble y realizar un excelente negocio inmobiliario.</div>';
+        $html .= '<p style="text-align:center;"><strong>Ref: ' . $numeroAve . '</strong></p>';
+
+        // Foto del inmueble (si existe)
+        if (!empty($inmueble['fotoId'])) {
+            $html .= '<div style="text-align:center; margin:16px 0;">';
+            $html .= '<img src="' . $esc($inmueble['fotoId']) . '" style="max-width:320px; max-height:220px; border-radius:8px; border:1px solid #ddd;">';
+            $html .= '</div>';
+        }
+
+        // Ubicación
+        $ubicacion = implode(', ', array_filter([
+            $inmueble['urbanizacion'] ?? '',
+            $inmueble['avenidaCalle'] ?? '',
+            $inmueble['ciudad']       ?? '',
+            $inmueble['estado']       ?? ''
+        ]));
+        $html .= '<h3>Ubicación</h3>';
+        $html .= '<p>' . $esc($ubicacion) . '</p>';
+
+        // Ficha del inmueble
+        $html .= '<h3>Ficha del Inmueble</h3>';
+        $html .= '<table><tr><th style="width:40%;">Campo</th><th>Valor</th></tr>';
+        $ficha = [
+            'Tipo de inmueble'    => ucfirst($inmueble['tipoPropiedad'] ?? '-') . ' - ' . ucfirst($inmueble['subtipoPropiedad'] ?? '-'),
+            'Propietario'         => $inmueble['nombrePropietario'] ?? '-',
+            'M² C / M² T'         => ($inmueble['areaConstruida'] ?? '0') . ' / ' . ($inmueble['areaTerreno'] ?? '0'),
+            'Antigüedad (años)'   => $inmueble['antiguedad'] ?? '-',
+            'Habitaciones / Baños'=> ($inmueble['numHabitaciones'] ?? '-') . ' / ' . ($inmueble['numBanos'] ?? '-'),
+            'Estacionamiento'     => $inmueble['puestoEstacionamiento'] ?? '-',
+            'Descripción'         => $inmueble['descripcion'] ?? '',
+        ];
+        foreach ($ficha as $label => $val) {
+            if ($val) $html .= '<tr><td><strong>' . $esc($label) . '</strong></td><td>' . $esc($val) . '</td></tr>';
+        }
+        $html .= '</table>';
+
+        // Helper para tabla de referencias
+        $buildRefTable = function(array $refs, string $titulo) use ($esc, $fmtUSD): string {
+            if (empty($refs)) return '';
+            $refs = array_values($refs);
+            $h  = '<h3>' . $titulo . '</h3>';
+            $h .= '<div style="overflow-x:auto;"><table>';
+            $h .= '<tr><th>Característica</th>';
+            foreach ($refs as $i => $r) $h .= '<th>REF ' . ($i + 1) . '</th>';
+            $h .= '</tr>';
+            $rows = [
+                'Tipo'              => fn($r) => $esc(($r['tipoPropiedad'] ?? '') . ' - ' . ($r['subtipoPropiedad'] ?? '')),
+                'M² C / M² T'      => fn($r) => $esc(($r['areaConstruida'] ?? '0') . ' / ' . ($r['areaTerreno'] ?? '0')),
+                'Antigüedad'        => fn($r) => $esc($r['antiguedad'] ?? '-'),
+                'Hab / Baños'       => fn($r) => $esc(($r['habitaciones'] ?? '-') . ' / ' . ($r['banos'] ?? '-')),
+                'Estacionamiento'   => fn($r) => $esc($r['estacionamiento'] ?? '-'),
+                'Terraza'           => fn($r) => $esc($r['terraza'] ? 'Sí' : 'No'),
+                'Valor (USD)'       => fn($r) => $fmtUSD($r['valorReferencial'] ?? null),
+                'USD x M²'          => fn($r) => $fmtUSD($r['valorm2'] ?? null),
+                'Acabados'          => fn($r) => $esc($r['acabados'] ?? '-'),
+                'Enlace'            => fn($r) => $r['enlace'] ? '<a href="' . $esc($r['enlace']) . '">' . $esc($r['enlace']) . '</a>' : '-',
+            ];
+            foreach ($rows as $label => $fn) {
+                $h .= '<tr><td><strong>' . $label . '</strong></td>';
+                foreach ($refs as $r) $h .= '<td>' . $fn($r) . '</td>';
+                $h .= '</tr>';
+            }
+            // Fotos
+            $h .= '<tr><td><strong>Foto</strong></td>';
+            foreach ($refs as $r) {
+                $h .= '<td>';
+                if (!empty($r['fotoId'])) {
+                    $h .= '<img src="data:image/jpeg;base64,foto" style="max-width:60px; max-height:60px;">';
+                } else {
+                    $h .= '-';
+                }
+                $h .= '</td>';
+            }
+            $h .= '</tr>';
+            $h .= '</table></div>';
+            return $h;
+        };
+
+        $html .= $buildRefTable(array_values($refPromocion), '1. VALOR REFERENCIAL DE INMUEBLES EN PROMOCIÓN');
+        $html .= $buildRefTable(array_values($refVendidos),  '2. VALOR REFERENCIAL DE INMUEBLES VENDIDOS');
+
+        // FODA
+        if (!empty($fortalezas) || !empty($debilidades)) {
+            $html .= '<h3>3. ANÁLISIS DE FORTALEZAS Y DEBILIDADES</h3>';
+            $html .= '<table><tr>';
+            $html .= '<td style="width:50%; vertical-align:top; background:#d4edda; padding:12px; border-radius:6px;">';
+            $html .= '<strong style="color:#155724;">Fortalezas</strong><br><br>';
+            foreach ($fortalezas as $f) {
+                $html .= '<div class="foda-item"><strong>' . $esc($f['tituloName'] ?? '') . '</strong>';
+                $html .= '<span>' . $esc($f['descripcion'] ?? '') . '</span></div>';
+            }
+            $html .= '</td><td style="width:50%; vertical-align:top; background:#f8d7da; padding:12px; border-radius:6px; padding-left:20px;">';
+            $html .= '<strong style="color:#721c24;">Debilidades</strong><br><br>';
+            foreach ($debilidades as $d) {
+                $html .= '<div class="foda-item"><strong>' . $esc($d['tituloName'] ?? '') . '</strong>';
+                $html .= '<span>' . $esc($d['descripcion'] ?? '') . '</span></div>';
+            }
+            $html .= '</td></tr></table>';
+        }
+
+        // Situación Legal
+        $html .= '<h3>Situación Legal</h3>';
+        $html .= '<table>';
+        $camposLegal = [
+            'Cédula Catastral'    => ['bool' => 'cedulaCatastral',   'nota' => 'cedCatNota'],
+            'Registro de Propiedad'=> ['bool' => 'registroPropiedad', 'nota' => 'regProNota'],
+            'Solvencia Municipal'  => ['bool' => 'solvenciaMunicipal','nota' => 'solMunNota'],
+            'Comentario Adicional' => ['bool' => 'comentarioLegal',   'nota' => 'comLegNota'],
+        ];
+        foreach ($camposLegal as $label => $campo) {
+            $val  = !empty($ave[$campo['bool']]);
+            $nota = $esc($ave[$campo['nota']] ?? '');
+            $html .= '<tr><td><strong>' . $label . '</strong></td>';
+            $html .= '<td class="' . ($val ? 'legal-si' : 'legal-no') . '">' . ($val ? 'Sí' : 'No') . '</td>';
+            $html .= '<td>' . $nota . '</td></tr>';
+        }
+        $html .= '</table>';
+
+        // Factores
+        if (!empty($factores)) {
+            $html .= '<h3>¿Qué influye en el precio actualmente?</h3><ul>';
+            foreach ($factores as $f) {
+                $icono = ($f['impacto'] ?? '') === 'positivo' ? '✅' : '❌';
+                $html .= '<li>' . $icono . ' ' . $esc($f['name'] ?? '') . '</li>';
+            }
+            $html .= '</ul>';
+        }
+
+        // Análisis de precios
+        $html .= '<h3>Análisis Integral</h3>';
+        $html .= '<table>';
+        $html .= '<tr><th>Síntesis</th><th>USD x m²</th><th>Precio (USD)</th></tr>';
+        $html .= '<tr><td>Precio Promedio Máximo</td><td>' . $fmtUSD($ave['valorMax'] ?? null) . '</td><td>' . $fmtUSD($ave['precioMax'] ?? null) . '</td></tr>';
+        $html .= '<tr><td>Precio Promedio Mínimo</td><td>' . $fmtUSD($ave['valorMin'] ?? null) . '</td><td>' . $fmtUSD($ave['precioMin'] ?? null) . '</td></tr>';
+        $html .= '<tr><td>Promedio de salida al mercado</td><td>' . $fmtUSD($ave['valorPromedio'] ?? null) . '</td><td>' . $fmtUSD($ave['precioOriginal'] ?? null) . '</td></tr>';
+        $html .= '</table>';
+        $html .= '<div class="precio-box"><strong>Rango de Precio: ' . $fmtUSD($ave['precioMin'] ?? null) . ' — ' . $fmtUSD($ave['precioMax'] ?? null) . '</strong>';
+        $html .= 'Ponderación: ' . ($ave['pesoOfertas'] ?? 70) . '% Ofertas / ' . ($ave['pesoVentas'] ?? 30) . '% Ventas</div>';
+
+        // Decisiones
+        if (!empty($decisiones)) {
+            $html .= '<h3>4. OPCIONES DE DECISIÓN</h3>';
+            foreach ($decisiones as $i => $d) {
+                $html .= '<p><strong>' . ($i + 1) . '. ' . $esc($d['name'] ?? '') . '</strong></p>';
+                if (!empty($d['descripcion'])) $html .= '<p style="margin-left:20px; color:#666;">' . $esc($d['descripcion']) . '</p>';
+            }
+        }
+
+        // Plan y medios
+        if (!empty($planes) || !empty($canales)) {
+            $html .= '<h3>5. PLAN DE TRABAJO</h3>';
+            foreach ($planes as $i => $p) {
+                $html .= '<p><strong>' . ($i + 1) . '. ' . $esc($p['name'] ?? '') . '</strong></p>';
+                if (!empty($p['descripcion'])) $html .= '<p style="margin-left:20px; color:#666;">' . $esc($p['descripcion']) . '</p>';
+            }
+            if (!empty($canales)) {
+                $html .= '<h4>Medios publicitarios</h4><p>';
+                foreach ($canales as $c) $html .= '<span class="canal-chip">' . $esc($c['name'] ?? '') . '</span> ';
+                $html .= '</p>';
+            }
+        }
+
+        // Footer
+        $html .= '<div class="footer"><p>Nuestra mayor satisfacción es poner a su disposición la información necesaria y datos referenciales que le sirvan de apoyo para tomar la mejor decisión.</p>';
+        $html .= '<p><strong>Saludos cordiales</strong><br>' . $fecha . '</p></div>';
+        $html .= '</body></html>';
+
+        return $html;
     }
 
     // ──────────────────────────────────────────────────────────────

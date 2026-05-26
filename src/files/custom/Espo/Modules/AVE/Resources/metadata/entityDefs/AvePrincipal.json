@@ -105,6 +105,11 @@
         },
         "rangoPrecioMax": {
             "type": "float"
+        },
+        "status": {
+            "type": "enum",
+            "options": ["elaboracion", "impresion", "aprobado"],
+            "default": "elaboracion"
         }
     },
     "links": {

@@ -861,3 +861,132 @@
     .ave-panel-heading   { padding: 10px 14px; }
     .ave-panel-title     { font-size: 13px; }
 }
+
+/* ============================================================
+   Lista — Leyenda de estados y badges
+   ============================================================ */
+.ave-lista-leyenda {
+    background: var(--ave-white);
+    padding: 12px 18px;
+    border-radius: 8px;
+    border: 1px solid var(--ave-border);
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    font-size: 13px;
+}
+
+.ave-leyenda-titulo { color: var(--ave-text-muted); }
+
+.ave-leyenda-badge {
+    color: white;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.ave-leyenda-elaboracion,
+.ave-status-elaboracion { background: var(--ave-warning); }
+
+.ave-leyenda-impresion,
+.ave-status-impresion   { background: #3498db; }
+
+.ave-leyenda-aprobado,
+.ave-status-aprobado    { background: var(--ave-success); }
+
+/* Botones de acción en la tabla */
+.ave-btn-aprobar {
+    background: var(--ave-success);
+    color: white;
+    border: none;
+    padding: 5px 11px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+.ave-btn-aprobar:hover { background: #229954; transform: translateY(-1px); }
+
+.ave-btn-imprimir {
+    background: var(--ave-primary);
+    color: white;
+    border: none;
+    padding: 5px 11px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+.ave-btn-imprimir:hover { background: var(--ave-primary-dark); transform: translateY(-1px); }
+
+.ave-btn-enviar-impresion {
+    background: #3498db;
+    color: white;
+    border: none;
+    padding: 5px 11px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+}
+.ave-btn-enviar-impresion:hover { background: #2176ae; transform: translateY(-1px); }
+
+/* ============================================================
+   Lista — Ajustes de ancho de columnas
+   ============================================================ */
+.ave-table th:nth-child(8),
+.ave-table td:nth-child(8) {
+    min-width: 130px;
+    white-space: nowrap;
+}
+
+.ave-table th:nth-child(9),
+.ave-table td:nth-child(9) {
+    min-width: 100px;
+    white-space: nowrap;
+}
+
+/* Badge de estado en la lista */
+.ave-leyenda-badge {
+    display: inline-block;
+    white-space: nowrap;
+    padding: 4px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+/* Ajuste responsivo para pantallas pequeñas */
+@media (max-width: 768px) {
+    .ave-table th:nth-child(8),
+    .ave-table td:nth-child(8),
+    .ave-table th:nth-child(9),
+    .ave-table td:nth-child(9) {
+        min-width: auto;
+        white-space: normal;
+    }
+    
+    .ave-leyenda-badge {
+        white-space: normal;
+        font-size: 10px;
+        padding: 2px 6px;
+    }
+}

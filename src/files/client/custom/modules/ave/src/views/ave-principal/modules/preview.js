@@ -46,9 +46,13 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         var valorPromedio = parseFloat(view.$el.find('#valorPromedio').val()) || 0;
         var precioOriginal = parseFloat(view.$el.find('#precioOriginal').val()) || 0;
         var ajustePrecio = parseFloat(view.$el.find('#ajustePrecio').val()) || 0;
-        var precioSugerido = parseFloat(view.$el.find('#precioSugerido').val()) || 0;
         var pesoOfertas = parseFloat(view.$el.find('#pesoOfertas').val()) || 70;
         var pesoVentas = 100 - pesoOfertas;
+
+        // Datos del usuario que creó el AVE
+        var assignedUserName = ave.assignedUserName || 'Usuario';
+        var fechaActual = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        var horaActual = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
         // Datos legales
         var legal = {
@@ -65,9 +69,6 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         // Construir HTML del reporte
         var html = '';
 
-        // ─────────────────────────────────────────────────────────────
-        // ENCABEZADO CON TEXTO DE INTRODUCCIÓN
-        // ─────────────────────────────────────────────────────────────
         html += '<div class="ave-preview-reporte" style="font-family: Arial, sans-serif; max-width: 1100px; margin: 0 auto;">';
 
         // Título principal
@@ -87,30 +88,78 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         html += '</div>';
 
         // ─────────────────────────────────────────────────────────────
-        // UBICACIÓN Y FICHA DEL INMUEBLE
+        // UBICACIÓN
         // ─────────────────────────────────────────────────────────────
         html += '<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">';
         html += '<h3 style="color: #B8A279; margin-top: 0;"><i class="fas fa-map-marker-alt"></i> Ubicación</h3>';
         html += '<p><strong>' + this.escape(inmueble.urbanizacion || '') + ' ' + this.escape(inmueble.avenidaCalle || '') + ', ' + this.escape(inmueble.ciudad || '') + ', ' + this.escape(inmueble.estado || '') + '</strong></p>';
         html += '</div>';
 
+        // ─────────────────────────────────────────────────────────────
+        // FICHA DEL INMUEBLE CON FOTO
+        // ─────────────────────────────────────────────────────────────
         html += '<div style="background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; margin-bottom: 20px;">';
         html += '<h3 style="color: #B8A279; margin-top: 0;"><i class="fas fa-building"></i> Ficha del Inmueble</h3>';
+        
+        // Tabla de datos del inmueble
         html += '<table style="width: 100%; border-collapse: collapse;">';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Tipo de inmueble</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + this.escape(this.formatTipo(inmueble.tipoPropiedad)) + ' - ' + this.escape(this.formatSubtipo(inmueble.subtipoPropiedad)) + '</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Propietario</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + this.escape(inmueble.nombrePropietario || '-') + '</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>M² C / M² T</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.areaConstruida || '0') + ',00 / ' + (inmueble.areaTerreno || '0') + ',00</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Antigüedad (años)</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.antiguedad || '-') + '</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Habitaciones / Baños</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.numHabitaciones || '-') + ' / ' + (inmueble.numBanos || '-') + '</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Estacionamiento</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.puestoEstacionamiento || '-') + '</td></tr>';
-        if (inmueble.descripcion) {
-            html += '<tr><td style="padding: 8px;"><strong>Descripción</strong></td><td style="padding: 8px;">' + this.escape(inmueble.descripcion) + '</td></tr>';
+        
+        // Fila 1: Tipo de inmueble y foto
+        html += '<tr>';
+        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Tipo de inmueble</strong></td>';
+        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;">' + this.escape(this.formatTipo(inmueble.tipoPropiedad)) + ' - ' + this.escape(this.formatSubtipo(inmueble.subtipoPropiedad)) + '</td>';
+        html += '<td rowspan="6" style="width: 150px; text-align: center; vertical-align: middle; border-bottom: 1px solid #eee;">';
+        if (inmueble.fotoId) {
+            html += '<img src="api/v1/Attachment/file/' + inmueble.fotoId + '" style="max-width: 130px; max-height: 130px; border-radius: 8px; border: 1px solid #ddd;">';
+        } else {
+            html += '<div style="width: 130px; height: 100px; background: #f0f0f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #999;"><i class="fas fa-image" style="font-size: 30px;"></i></div>';
         }
+        html += '</td>';
+        html += '</tr>';
+        
+        // Fila 2: Propietario
+        html += '<tr>';
+        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Propietario</strong></td>';
+        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;">' + this.escape(inmueble.nombrePropietario || '-') + '</td>';
+        html += '</tr>';
+        
+        // Fila 3: M² C / M² T
+        html += '<tr>';
+        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>M² C / M² T</strong></td>';
+        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.areaConstruida || '0') + ',00 / ' + (inmueble.areaTerreno || '0') + ',00</td>';
+        html += '</tr>';
+        
+        // Fila 4: Antigüedad
+        html += '<tr>';
+        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Antigüedad (años)</strong></td>';
+        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.antiguedad || '-') + '</td>';
+        html += '</tr>';
+        
+        // Fila 5: Habitaciones / Baños
+        html += '<tr>';
+        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Habitaciones / Baños</strong></td>';
+        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.numHabitaciones || '-') + ' / ' + (inmueble.numBanos || '-') + '</td>';
+        html += '</tr>';
+        
+        // Fila 6: Estacionamiento
+        html += '<tr>';
+        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Estacionamiento</strong></td>';
+        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.puestoEstacionamiento || '-') + '</td>';
+        html += '</tr>';
+        
+        // Fila 7: Descripción (si existe)
+        if (inmueble.descripcion) {
+            html += '<tr>';
+            html += '<td style="padding: 8px;"><strong>Descripción</strong></td>';
+            html += '<td colspan="2">' + this.escape(inmueble.descripcion) + '</td>';
+            html += '</tr>';
+        }
+        
         html += '</table>';
         html += '</div>';
 
         // ─────────────────────────────────────────────────────────────
-        // REFERENCIAS EN PROMOCIÓN
+        // REFERENCIAS EN PROMOCIÓN (con fotos)
         // ─────────────────────────────────────────────────────────────
         if (referenciasPromocion.length > 0) {
             html += '<div style="margin-bottom: 20px;">';
@@ -122,8 +171,6 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             for (var i = 0; i < referenciasPromocion.length; i++) {
                 html += '<th style="padding: 8px; border: 1px solid #ddd;">REF ' + (i + 1) + '</th>';
             }
-            html += '<th style="padding: 8px; border: 1px solid #ddd;">Enlace</th>';
-            html += '<th style="padding: 8px; border: 1px solid #ddd;">Foto</th>';
             html += '</tr></thead><tbody>';
 
             var rows = [
@@ -144,31 +191,27 @@ define('ave:views/ave-principal/modules/preview', [], function () {
                 for (var j = 0; j < referenciasPromocion.length; j++) {
                     html += '<td style="padding: 8px; border: 1px solid #ddd;">' + rows[r].get.call(this, referenciasPromocion[j]) + '</td>';
                 }
-                html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
-                html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
                 html += '</tr>';
             }
 
-            // Fila de Enlaces
+            // Fila de enlaces
             html += '<tr>';
             html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Enlace</strong></td>';
             for (var j = 0; j < referenciasPromocion.length; j++) {
                 var enlace = referenciasPromocion[j].enlace;
-                var enlaceHtml = enlace ? '<a href="' + this.escape(enlace) + '" target="_blank">Ver</a>' : '-';
+                var enlaceHtml = enlace ? '<a href="' + this.escape(enlace) + '" target="_blank">' + this.escape(enlace) + '</a>' : '-';
                 html += '<td style="padding: 8px; border: 1px solid #ddd;">' + enlaceHtml + '</td>';
             }
-            html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
             html += '</tr>';
 
-            // Fila de Fotos
+            // Fila de fotos
             html += '<tr>';
             html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Foto</strong></td>';
             for (var j = 0; j < referenciasPromocion.length; j++) {
                 var fotoId = referenciasPromocion[j].fotoId;
-                var fotoHtml = fotoId ? '<img src="api/v1/Attachment/file/' + fotoId + '" style="max-width:60px; max-height:60px; border-radius:4px;">' : '-';
-                html += '<td style="padding: 8px; border: 1px solid #ddd; text-align:center;">' + fotoHtml + '</td>';
+                var fotoHtml = fotoId ? '<img src="api/v1/Attachment/file/' + fotoId + '" style="max-width: 60px; max-height: 60px; border-radius: 4px;">' : '-';
+                html += '<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' + fotoHtml + '</td>';
             }
-            html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
             html += '</tr>';
 
             html += '</tbody></table>';
@@ -176,7 +219,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         }
 
         // ─────────────────────────────────────────────────────────────
-        // REFERENCIAS VENDIDOS
+        // REFERENCIAS VENDIDOS (con fotos)
         // ─────────────────────────────────────────────────────────────
         if (referenciasVendidos.length > 0) {
             html += '<div style="margin-bottom: 20px;">';
@@ -188,9 +231,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             for (var i = 0; i < referenciasVendidos.length; i++) {
                 html += '<th style="padding: 8px; border: 1px solid #ddd;">REF ' + (i + 1) + '</th>';
             }
-            html += '<th style="padding: 8px; border: 1px solid #ddd;">Enlace</th>';
-            html += '<th style="padding: 8px; border: 1px solid #ddd;">Foto</th>';
-            html += '</tr></thead><tbody>';
+            html += '<tr></thead><tbody>';
 
             for (var r = 0; r < rows.length; r++) {
                 html += '<tr>';
@@ -198,31 +239,27 @@ define('ave:views/ave-principal/modules/preview', [], function () {
                 for (var j = 0; j < referenciasVendidos.length; j++) {
                     html += '<td style="padding: 8px; border: 1px solid #ddd;">' + rows[r].get.call(this, referenciasVendidos[j]) + '</td>';
                 }
-                html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
-                html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
                 html += '</tr>';
             }
 
-            // Fila de Enlaces
+            // Fila de enlaces
             html += '<tr>';
             html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Enlace</strong></td>';
             for (var j = 0; j < referenciasVendidos.length; j++) {
                 var enlace = referenciasVendidos[j].enlace;
-                var enlaceHtml = enlace ? '<a href="' + this.escape(enlace) + '" target="_blank">Ver</a>' : '-';
+                var enlaceHtml = enlace ? '<a href="' + this.escape(enlace) + '" target="_blank">' + this.escape(enlace) + '</a>' : '-';
                 html += '<td style="padding: 8px; border: 1px solid #ddd;">' + enlaceHtml + '</td>';
             }
-            html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
             html += '</tr>';
 
-            // Fila de Fotos
+            // Fila de fotos
             html += '<tr>';
             html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Foto</strong></td>';
             for (var j = 0; j < referenciasVendidos.length; j++) {
                 var fotoId = referenciasVendidos[j].fotoId;
-                var fotoHtml = fotoId ? '<img src="api/v1/Attachment/file/' + fotoId + '" style="max-width:60px; max-height:60px; border-radius:4px;">' : '-';
-                html += '<td style="padding: 8px; border: 1px solid #ddd; text-align:center;">' + fotoHtml + '</td>';
+                var fotoHtml = fotoId ? '<img src="api/v1/Attachment/file/' + fotoId + '" style="max-width: 60px; max-height: 60px; border-radius: 4px;">' : '-';
+                html += '<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' + fotoHtml + '</td>';
             }
-            html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
             html += '</tr>';
 
             html += '</tbody></table>';
@@ -272,7 +309,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Cédula Catastral</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.cedulaCatastral ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + this.escape(legal.cedCatNota || '') + '</td></tr>';
         html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Registro de Propiedad</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.registroPropiedad ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + this.escape(legal.regProNota || '') + '</td></tr>';
         html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Solvencia Municipal</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.solvenciaMunicipal ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + this.escape(legal.solMunNota || '') + '</td></tr>';
-        html += '<tr><td style="padding: 8px;"><strong>Comentario Adicional</strong></td><td style="padding: 8px;" colspan="2">' + (legal.comentarioLegal ? this.escape(legal.comLegNota || '') : 'No hay comentarios') + '</td></tr>';
+        html += '<tr><td style="padding: 8px;"><strong>Comentario Adicional</strong></td><td colspan="2">' + (legal.comentarioLegal ? this.escape(legal.comLegNota || '') : 'No hay comentarios') + '</td></tr>';
         html += '</table>';
         html += '</div>';
 
@@ -304,7 +341,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
 
         html += '<div style="background: #B8A279; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-top: 15px;">';
         html += '<strong>Rango de Precio para salir al mercado: entre $ ' + (precioMin > 0 ? precioMin.toLocaleString() : '0') + ' y $ ' + (precioMax > 0 ? precioMax.toLocaleString() : '0') + '</strong>';
-        html += '<br><span style="font-size: 14px;">Precio Sugerido: $ ' + (precioSugerido > 0 ? precioSugerido.toLocaleString() : '0,00') + ' (Ajuste: ' + ajustePrecio + '%)</span>';
+        html += '<br><span style="font-size: 14px;">Precio Sugerido: $ ' + (precioOriginal > 0 ? precioOriginal.toLocaleString() : '0,00') + ' (Ajuste: ' + ajustePrecio + '%)</span>';
         html += '<br><span style="font-size: 12px;">Ponderación: ' + pesoOfertas + '% Ofertas / ' + pesoVentas + '% Ventas</span>';
         html += '</div>';
         html += '</div>';
@@ -349,15 +386,34 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             html += '</div>';
         }
 
-        // ─────────────────────────────────────────────────────────────
-        // FOOTER
-        // ─────────────────────────────────────────────────────────────
-        html += '<div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #B8A279; text-align: center; color: #999; font-size: 12px;">';
-        html += '<p>Nuestra mayor satisfacción es poner a su disposición la información necesaria y datos referenciales que le sirvan de apoyo para tomar la mejor decisión.</p>';
-        html += '<p><strong>Saludos cordiales,</strong><br>Equipo AVE<br>' + new Date().toLocaleDateString('es-ES') + '</p>';
+        html += '<div style="margin-top: 30px; padding: 15px; background: #f9f9f9; border-radius: 8px; text-align: center;">';
+        html += '<p style="margin-bottom: 10px;">Sr(a) ' + this.escape(ave.nombreCliente || 'Cliente') + ', nuestra mayor satisfacción es poner a su disposición la información necesaria y datos referenciales que le sirvan de apoyo para tomar la mejor decisión en la venta de su inmueble y poder contribuir en el bienestar de su familia, siempre a sus órdenes para brindarle el mejor servicio inmobiliario.</p>';
         html += '</div>';
 
-        html += '</div>'; // cierre container
+
+        // ─────────────────────────────────────────────────────────────
+        // DATOS DEL USUARIO / ASESOR
+        // ─────────────────────────────────────────────────────────────
+        html += '<div style="margin-top: 30px; padding: 15px; background: #f5f5f5; border-radius: 8px; text-align: center;">';
+        html += '<p><strong>Saludos cordiales,</strong></p>';
+        html += '<p><strong>' + this.escape(assignedUserName) + '</strong><br>';
+        html += 'Asesor Inmobiliario<br>';
+        if (ave.correoCliente) {
+            html += '<a href="mailto:' + this.escape(ave.correoCliente) + '" style="color: #B8A279;">' + this.escape(ave.correoCliente) + '</a><br>';
+        }
+        if (ave.telefonoCliente) {
+            html += this.escape(ave.telefonoCliente);
+        }
+        html += '</p>';
+        html += '<p style="font-size: 11px; color: #999; margin-top: 10px;">Fecha: ' + fechaActual + ' ' + horaActual + '</p>';
+        html += '</div>';
+
+        // Footer final
+        html += '<div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 11px;">';
+        html += '<p>Nuestra mayor satisfacción es poner a su disposición la información necesaria y datos referenciales que le sirvan de apoyo para tomar la mejor decisión.</p>';
+        html += '</div>';
+
+        html += '</div>';
 
         return html;
     };

@@ -17,9 +17,10 @@ class AvePrincipal extends RecordBase
         $cliente   = $request->getQueryParam('cliente')               ?? '';
         $identi    = $request->getQueryParam('identificacion')        ?? '';
         $asesor    = $request->getQueryParam('asesor')                ?? '';
+        $status    = $request->getQueryParam('status')                ?? '';
 
         return $this->getServiceFactory()->create('AvePrincipal')
-            ->getLista($pagina, $porPagina, $numero, $cliente, $identi, $asesor);
+            ->getLista($pagina, $porPagina, $numero, $cliente, $identi, $asesor, $status);
     }
 
     public function getActionGetOrCreate(Request $request, Response $response): array
@@ -54,6 +55,22 @@ class AvePrincipal extends RecordBase
         $teamId = $request->getQueryParam('teamId') ?? null;
         if (!$tipo) throw new BadRequest("Parámetro 'tipo' requerido.");
         return $this->getServiceFactory()->create('AvePrincipal')->getFactoresPorTipo($tipo, $teamId);
+    }
+
+    public function postActionCambiarStatus(Request $request, Response $response): array
+    {
+        $data   = $request->getParsedBody();
+        $aveId  = $data->aveId  ?? null;
+        $status = $data->status ?? null;
+        if (!$aveId || !$status) throw new BadRequest("Parámetros 'aveId' y 'status' requeridos.");
+        return $this->getServiceFactory()->create('AvePrincipal')->cambiarStatus($aveId, $status);
+    }
+
+    public function getActionGenerarPdf(Request $request, Response $response): void
+    {
+        $aveId = $request->getQueryParam('aveId');
+        if (!$aveId) throw new BadRequest("Parámetro 'aveId' requerido.");
+        $this->getServiceFactory()->create('AvePrincipal')->generarPdf($aveId);
     }
 
     public function getActionGetCatalogoAnalisis(Request $request, Response $response): array
