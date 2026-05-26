@@ -93,7 +93,12 @@
         },
         "foto": {
             "type": "image"
+        },
+        "fotoId": {
+            "type": "varchar",
+            "maxLength": 64
         }
+
     },
     "links": {
         "avePrincipales": {

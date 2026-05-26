@@ -1,0 +1,33 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "required": false
+        },
+        "tipo": {
+            "type": "enum",
+            "options": ["fortaleza", "debilidad"],
+            "required": true
+        },
+        "descripcion": {
+            "type": "text",
+            "required": true
+        }
+    },
+    "links": {
+        "avePrincipal": {
+            "type": "belongsTo",
+            "entity": "AvePrincipal",
+            "foreign": "aveAnalisisRespuestas"
+        },
+        "aveAnalisis": {
+            "type": "belongsTo",
+            "entity": "AveAnalisis",
+            "foreign": "respuestas"
+        }
+    },
+    "collection": {
+        "orderBy": "createdAt",
+        "order": "asc"
+    }
+}

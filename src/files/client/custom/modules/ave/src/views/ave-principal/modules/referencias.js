@@ -130,15 +130,15 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
     // Manejo de foto (subida inmediata con fetch para mayor control)
     ReferenciasManager.prototype.setupFoto = function () {
         var self = this;
-        var $file = this.view.$el.find('#ref-foto');
+        var $file    = this.view.$el.find('#ref-foto');
         var $preview = this.view.$el.find('#ref-foto-preview');
-        var $img = $preview.find('img');
-        var $fotoId = this.view.$el.find('#ref-foto-id');
+        var $img     = $preview.find('img');
+        var $fotoId  = this.view.$el.find('#ref-foto-id');
 
-        // Eliminar event listener anterior para evitar duplicados
         $file.off('change').on('change', function (e) {
             var file = e.target.files[0];
             if (!file) return;
+
             if (!file.type.startsWith('image/')) {
                 Espo.Ui.warning('Solo se permiten imágenes');
                 $file.val('');
@@ -149,33 +149,61 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
                 $file.val('');
                 return;
             }
-            // Preview
+
+            // Mostrar preview local inmediatamente
             var reader = new FileReader();
-            reader.onload = function (e) {
-                $img.attr('src', e.target.result);
+            reader.onload = function (ev) {
+                $img.attr('src', ev.target.result);
                 $preview.show();
             };
             reader.readAsDataURL(file);
 
-            // Subir al servidor usando fetch (más directo)
+            // Subir al servidor — incluir credentials para la sesión de EspoCRM
             var formData = new FormData();
             formData.append('file', file);
+
+            // Obtener el token CSRF de EspoCRM si existe
+            var headers = {};
+            var csrfToken = document.cookie.match(/ESPO_CSRF_TOKEN=([^;]+)/);
+            if (csrfToken) {
+                headers['X-Csrf-Token'] = csrfToken[1];
+            }
+            // EspoCRM también acepta autenticación básica por header en algunas versiones;
+            // credentials: 'same-origin' cubre la sesión por cookie
             fetch('api/v1/AvePrincipal/action/uploadFoto', {
                 method: 'POST',
+                credentials: 'same-origin',   // ← CRÍTICO: enviar cookies de sesión
+                headers: headers,
                 body: formData
             })
-            .then(response => response.json())
-            .then(data => {
+            .then(function (response) {
+                if (!response.ok) {
+                    return response.text().then(function (text) {
+                        throw new Error('HTTP ' + response.status + ': ' + text);
+                    });
+                }
+                return response.json();
+            })
+            .then(function (data) {
                 if (data.success && data.id) {
                     $fotoId.val(data.id);
-                    console.log('Foto subida, ID:', data.id);
+                    console.log('AVE: foto subida correctamente, ID:', data.id);
+                    Espo.Ui.success('Foto cargada correctamente');
                 } else {
-                    Espo.Ui.error('Error al subir la foto: ' + (data.error || 'desconocido'));
+                    Espo.Ui.error('Error al subir la foto: ' + (data.error || 'respuesta inesperada'));
+                    console.error('AVE uploadFoto error:', data);
+                    // Limpiar preview si falla
+                    $img.attr('src', '');
+                    $preview.hide();
+                    $file.val('');
                 }
             })
-            .catch(error => {
-                console.error(error);
-                Espo.Ui.error('Error de red al subir la foto');
+            .catch(function (error) {
+                console.error('AVE uploadFoto fetch error:', error);
+                Espo.Ui.error('Error de red al subir la foto: ' + error.message);
+                $img.attr('src', '');
+                $preview.hide();
+                $file.val('');
             });
         });
 
@@ -243,68 +271,118 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
     ReferenciasManager.prototype.renderizar = function (tipo) {
         var self = this;
         var items = this.items[tipo];
-        var listId = tipo === 'promocion' ? 'refs-promocion-lista' : 'refs-vendido-lista';
-        var badgeId = tipo === 'promocion' ? 'badge-promocion' : 'badge-vendido';
-        var btnId = tipo === 'promocion' ? 'btn-add-promocion' : 'btn-add-vendido';
+        var listId  = tipo === 'promocion' ? 'refs-promocion-lista' : 'refs-vendido-lista';
+        var badgeId = tipo === 'promocion' ? 'badge-promocion'      : 'badge-vendido';
+        var btnId   = tipo === 'promocion' ? 'btn-add-promocion'    : 'btn-add-vendido';
 
         this.view.$el.find('#' + badgeId).text(items.length + ' / ' + MAX_REFS);
         var $addBtn = this.view.$el.find('#' + btnId);
         items.length >= MAX_REFS ? $addBtn.hide() : $addBtn.show();
 
         if (items.length === 0) {
-            this.view.$el.find('#' + listId).html('<div style="text-align:center; padding:20px;">No hay referencias agregadas.</div>');
+            this.view.$el.find('#' + listId).html(
+                '<div style="text-align:center; padding:20px; color:var(--ave-text-muted);">No hay referencias agregadas.</div>'
+            );
             return;
         }
 
         var html = '';
         items.forEach(function (ref, idx) {
-            var m2Display = ref.valorm2 ? '$ ' + parseFloat(ref.valorm2).toFixed(2) + '/m²' : '-';
-            var calcBadge = ref.usarCalculo ? '<span class="ave-ref-calc-badge ave-ref-calc-si">Usar en cálculo</span>' : '<span class="ave-ref-calc-badge ave-ref-calc-no">Excluir</span>';
+            var m2Display   = ref.valorm2 ? '$ ' + parseFloat(ref.valorm2).toFixed(2) + '/m²' : '-';
+            var calcBadge   = ref.usarCalculo
+                ? '<span class="ave-ref-calc-badge ave-ref-calc-si">En cálculo</span>'
+                : '<span class="ave-ref-calc-badge ave-ref-calc-no">Excluida</span>';
+            var fotoUrl     = ref.fotoId ? 'api/v1/Attachment/file/' + ref.fotoId : null;
+            var areaCon     = ref.areaConstruida ? parseFloat(ref.areaConstruida).toLocaleString('es-VE') + ' m²' : '-';
+            var areaTer     = ref.areaTerreno    ? parseFloat(ref.areaTerreno).toLocaleString('es-VE') + ' m²'    : '-';
 
             html += '<div class="ave-ref-card">';
+
+            // ── Header ──────────────────────────────────────────────────
             html += '<div class="ave-ref-card-header">';
+
+            // Número + thumbnail foto
+            html += '<div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">';
             html += '<span class="ave-ref-card-num">' + (idx + 1) + '</span>';
+            if (fotoUrl) {
+                html += '<img src="' + fotoUrl + '" class="ave-ref-thumb" alt="foto referencia">';
+            } else {
+                html += '<div class="ave-ref-thumb ave-ref-thumb-empty"><i class="fas fa-image"></i></div>';
+            }
+            html += '</div>';
+
+            // Info central
             html += '<div class="ave-ref-card-info">';
-            html += '<div class="ave-ref-card-title">' + self.escape(ref.tipoPropiedad || 'Sin tipo') + ' — ' + self.escape(ref.subtipoPropiedad || 'Sin subtipo') + ' ' + calcBadge + '</div>';
-            html += '<div class="ave-ref-card-subtitle">';
-            if (ref.valorReferencial) html += 'Valor: $' + parseFloat(ref.valorReferencial).toLocaleString('es-VE') + ' &nbsp;|&nbsp; ';
-            html += '<span class="ave-valorm2-display">' + m2Display + '</span>';
-            html += '</div></div>';
+            html += '<div class="ave-ref-card-title">';
+            html += self.escape(ref.tipoPropiedad || 'Sin tipo') + ' — ' + self.escape(ref.subtipoPropiedad || 'Sin subtipo');
+            html += ' ' + calcBadge;
+            html += '</div>';
+
+            // Chips de área + valor m²
+            html += '<div class="ave-ref-areas-row">';
+            html += '<span class="ave-ref-area-chip"><i class="fas fa-ruler-combined"></i> Const. <strong>' + areaCon + '</strong></span>';
+            html += '<span class="ave-ref-area-chip"><i class="fas fa-expand-arrows-alt"></i> Terreno <strong>' + areaTer + '</strong></span>';
+            if (ref.valorReferencial) {
+                html += '<span class="ave-ref-area-chip ave-ref-area-chip--precio"><i class="fas fa-dollar-sign"></i> <strong>$ ' + parseFloat(ref.valorReferencial).toLocaleString('es-VE') + '</strong></span>';
+            }
+            html += '<span class="ave-valorm2-display" style="margin-left:4px;">' + m2Display + '</span>';
+            html += '</div>';
+            html += '</div>'; // /.ave-ref-card-info
+
+            // Acciones
             html += '<div class="ave-ref-card-actions">';
             html += '<button class="ave-btn ave-btn-secondary ave-btn-sm" data-action="editar-ref" data-tipo="' + tipo + '" data-idx="' + idx + '"><i class="fas fa-edit"></i> Editar</button>';
             html += '<button class="ave-btn ave-btn-danger ave-btn-sm" data-action="eliminar-ref" data-tipo="' + tipo + '" data-idx="' + idx + '"><i class="fas fa-trash"></i></button>';
-            html += '</div></div>';
+            html += '</div>';
 
+            html += '</div>'; // /.ave-ref-card-header
+
+            // ── Body (resto de campos) ───────────────────────────────────
             html += '<div class="ave-ref-card-body">';
             html += '<div class="row">';
-            html += self.fieldHtml('Área Construida', ref.areaConstruida ? ref.areaConstruida + ' m²' : '-');
-            html += self.fieldHtml('Área Terreno', ref.areaTerreno ? ref.areaTerreno + ' m²' : '-');
-            html += self.fieldHtml('Antigüedad', ref.antiguedad ? ref.antiguedad + ' años' : '-');
-            html += self.fieldHtml('Habitaciones', ref.habitaciones || '-');
-            html += self.fieldHtml('Baños', ref.banos || '-');
-            html += self.fieldHtml('Estacionamiento', ref.estacionamiento || '-');
-            html += self.fieldHtml('Piso', ref.piso || '-');
-            html += self.fieldHtml('Acabados', ref.acabados || '-');
-            html += self.fieldHtml('Seguridad', ref.seguridad || '-');
-            html += self.fieldHtml('Terraza', ref.terraza ? 'Sí' : 'No');
-            html += self.fieldHtml('Ascensores', ref.ascensores ? 'Sí' : 'No');
+
+            // Foto a tamaño completo en el body (si existe), más los demás campos
+            if (fotoUrl) {
+                html += '<div class="col-md-2">';
+                html += '<div class="ave-ref-field">';
+                html += '<div class="ave-ref-field-label">Foto</div>';
+                html += '<img src="' + fotoUrl + '" class="ave-ref-foto-full" alt="foto referencia">';
+                html += '</div></div>';
+            }
+
+            var colClass = fotoUrl ? 'col-md-2' : 'col-md-3';
+
+            // Campos secundarios — excluimos área construida, terreno y valor (ya en header)
+            html += self.fieldHtml('Antigüedad',    ref.antiguedad    ? ref.antiguedad + ' años' : '-', colClass);
+            html += self.fieldHtml('Habitaciones',  ref.habitaciones  || '-', colClass);
+            html += self.fieldHtml('Baños',         ref.banos         || '-', colClass);
+            html += self.fieldHtml('Estacionam.',   ref.estacionamiento || '-', colClass);
+            html += self.fieldHtml('Piso',          ref.piso          || '-', colClass);
+            html += self.fieldHtml('Acabados',      ref.acabados      || '-', colClass);
+            html += self.fieldHtml('Seguridad',     ref.seguridad     || '-', colClass);
+            html += self.fieldHtml('Terraza',       ref.terraza       ? 'Sí' : 'No', colClass);
+            html += self.fieldHtml('Ascensores',    ref.ascensores    ? 'Sí' : 'No', colClass);
 
             if (ref.descripcion) {
                 html += '<div class="col-md-12"><div class="ave-ref-field"><div class="ave-ref-field-label">Descripción</div><div class="ave-ref-field-value">' + self.escape(ref.descripcion) + '</div></div></div>';
             }
             if (ref.enlace) {
-                html += '<div class="col-md-12"><div class="ave-ref-field"><div class="ave-ref-field-label">Enlace</div><div class="ave-ref-field-value"><a href="' + self.escape(ref.enlace) + '" target="_blank">' + self.escape(ref.enlace) + '</a></div></div></div>';
+                html += '<div class="col-md-12"><div class="ave-ref-field"><div class="ave-ref-field-label">Enlace</div><div class="ave-ref-field-value"><a href="' + self.escape(ref.enlace) + '" target="_blank" rel="noopener">' + self.escape(ref.enlace) + '</a></div></div></div>';
             }
-            if (ref.fotoId) {
-                html += '<div class="col-md-12"><div class="ave-ref-field"><div class="ave-ref-field-label">Foto</div><div class="ave-ref-field-value"><img src="api/v1/Attachment/file/' + ref.fotoId + '" style="max-width:120px; max-height:120px; border-radius:4px; margin-top:8px;"></div></div></div>';
-            }
-            html += '</div></div></div>';
+
+            html += '</div></div>'; // /.row  /.ave-ref-card-body
+            html += '</div>';       // /.ave-ref-card
         });
+
         this.view.$el.find('#' + listId).html(html);
     };
 
-    ReferenciasManager.prototype.fieldHtml = function (label, value) {
-        return '<div class="col-md-3"><div class="ave-ref-field"><div class="ave-ref-field-label">' + label + '</div><div class="ave-ref-field-value">' + this.escape(String(value)) + '</div></div></div>';
+    ReferenciasManager.prototype.fieldHtml = function (label, value, colClass) {
+        colClass = colClass || 'col-md-3';
+        return '<div class="' + colClass + '"><div class="ave-ref-field">' +
+            '<div class="ave-ref-field-label">' + label + '</div>' +
+            '<div class="ave-ref-field-value">' + this.escape(String(value)) + '</div>' +
+            '</div></div>';
     };
 
     ReferenciasManager.prototype.getData = function () {

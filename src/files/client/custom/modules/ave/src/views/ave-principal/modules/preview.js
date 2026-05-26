@@ -47,8 +47,6 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         var precioOriginal = parseFloat(view.$el.find('#precioOriginal').val()) || 0;
         var ajustePrecio = parseFloat(view.$el.find('#ajustePrecio').val()) || 0;
         var precioSugerido = parseFloat(view.$el.find('#precioSugerido').val()) || 0;
-        var rangoMin = parseFloat(view.$el.find('#rangoPrecioMinDisplay').text().replace(/[^0-9.-]/g, '')) || 0;
-        var rangoMax = parseFloat(view.$el.find('#rangoPrecioMaxDisplay').text().replace(/[^0-9.-]/g, '')) || 0;
         var pesoOfertas = parseFloat(view.$el.find('#pesoOfertas').val()) || 70;
         var pesoVentas = 100 - pesoOfertas;
 
@@ -78,7 +76,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         html += '<h2 style="color: #666; font-size: 18px; margin-top: 0;">' + this.escape(ave.nombreCliente || 'Cliente') + '</h2>';
         html += '</div>';
 
-        // Texto de introducción (como en el PDF)
+        // Texto de introducción
         html += '<div style="margin-bottom: 25px; text-align: justify; line-height: 1.6;">';
         html += '<p>Estimado(a) ' + this.escape(ave.nombreCliente || 'Cliente') + ', Reciba de todo el equipo que labora en nuestras oficinas un cordial saludo de respeto hacia usted por brindarnos su confianza. Le presentamos el siguiente Análisis de Venta Exitoso correspondiente a su propiedad; con el propósito de mostrarle referencias actuales del mercado inmobiliario que le ayuden a tomar la mejor decisión sobre el valor promocional de su inmueble y realizar un excelente negocio inmobiliario.</p>';
         html += '</div>';
@@ -124,7 +122,8 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             for (var i = 0; i < referenciasPromocion.length; i++) {
                 html += '<th style="padding: 8px; border: 1px solid #ddd;">REF ' + (i + 1) + '</th>';
             }
-            html += '<th style="padding: 8px; border: 1px solid #ddd;">ANEXO</th>';
+            html += '<th style="padding: 8px; border: 1px solid #ddd;">Enlace</th>';
+            html += '<th style="padding: 8px; border: 1px solid #ddd;">Foto</th>';
             html += '</tr></thead><tbody>';
 
             var rows = [
@@ -145,9 +144,33 @@ define('ave:views/ave-principal/modules/preview', [], function () {
                 for (var j = 0; j < referenciasPromocion.length; j++) {
                     html += '<td style="padding: 8px; border: 1px solid #ddd;">' + rows[r].get.call(this, referenciasPromocion[j]) + '</td>';
                 }
-                html += '<td style="padding: 8px; border: 1px solid #ddd;"></td>';
+                html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
+                html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
                 html += '</tr>';
             }
+
+            // Fila de Enlaces
+            html += '<tr>';
+            html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Enlace</strong></td>';
+            for (var j = 0; j < referenciasPromocion.length; j++) {
+                var enlace = referenciasPromocion[j].enlace;
+                var enlaceHtml = enlace ? '<a href="' + this.escape(enlace) + '" target="_blank">Ver</a>' : '-';
+                html += '<td style="padding: 8px; border: 1px solid #ddd;">' + enlaceHtml + '</td>';
+            }
+            html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
+            html += '</tr>';
+
+            // Fila de Fotos
+            html += '<tr>';
+            html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Foto</strong></td>';
+            for (var j = 0; j < referenciasPromocion.length; j++) {
+                var fotoId = referenciasPromocion[j].fotoId;
+                var fotoHtml = fotoId ? '<img src="api/v1/Attachment/file/' + fotoId + '" style="max-width:60px; max-height:60px; border-radius:4px;">' : '-';
+                html += '<td style="padding: 8px; border: 1px solid #ddd; text-align:center;">' + fotoHtml + '</td>';
+            }
+            html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
+            html += '</tr>';
+
             html += '</tbody></table>';
             html += '</div></div>';
         }
@@ -165,7 +188,8 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             for (var i = 0; i < referenciasVendidos.length; i++) {
                 html += '<th style="padding: 8px; border: 1px solid #ddd;">REF ' + (i + 1) + '</th>';
             }
-            html += '<th style="padding: 8px; border: 1px solid #ddd;">ANEXO</th>';
+            html += '<th style="padding: 8px; border: 1px solid #ddd;">Enlace</th>';
+            html += '<th style="padding: 8px; border: 1px solid #ddd;">Foto</th>';
             html += '</tr></thead><tbody>';
 
             for (var r = 0; r < rows.length; r++) {
@@ -174,9 +198,33 @@ define('ave:views/ave-principal/modules/preview', [], function () {
                 for (var j = 0; j < referenciasVendidos.length; j++) {
                     html += '<td style="padding: 8px; border: 1px solid #ddd;">' + rows[r].get.call(this, referenciasVendidos[j]) + '</td>';
                 }
-                html += '<td style="padding: 8px; border: 1px solid #ddd;"></td>';
+                html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
+                html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
                 html += '</tr>';
             }
+
+            // Fila de Enlaces
+            html += '<tr>';
+            html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Enlace</strong></td>';
+            for (var j = 0; j < referenciasVendidos.length; j++) {
+                var enlace = referenciasVendidos[j].enlace;
+                var enlaceHtml = enlace ? '<a href="' + this.escape(enlace) + '" target="_blank">Ver</a>' : '-';
+                html += '<td style="padding: 8px; border: 1px solid #ddd;">' + enlaceHtml + '</td>';
+            }
+            html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
+            html += '</tr>';
+
+            // Fila de Fotos
+            html += '<tr>';
+            html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Foto</strong></td>';
+            for (var j = 0; j < referenciasVendidos.length; j++) {
+                var fotoId = referenciasVendidos[j].fotoId;
+                var fotoHtml = fotoId ? '<img src="api/v1/Attachment/file/' + fotoId + '" style="max-width:60px; max-height:60px; border-radius:4px;">' : '-';
+                html += '<td style="padding: 8px; border: 1px solid #ddd; text-align:center;">' + fotoHtml + '</td>';
+            }
+            html += '<td style="padding: 8px; border: 1px solid #ddd;"> </td>';
+            html += '</tr>';
+
             html += '</tbody></table>';
             html += '</div></div>';
         }

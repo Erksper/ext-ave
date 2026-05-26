@@ -12,38 +12,108 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
     // ─────────────────────────────────────────────
     InmuebleManager.prototype.inicializarBuscador = function () {
         var self = this;
-        var $input = this.view.$el.find('#inmueble-search-input');
+        var $input    = this.view.$el.find('#inmueble-search-input');
         var $dropdown = this.view.$el.find('#inmueble-search-results');
 
         $input.off('input').on('input', function () {
             clearTimeout(self._searchTimer);
             var q = $(this).val().trim();
-            if (q.length < 2) {
-                $dropdown.hide();
-                return;
-            }
+            if (q.length < 2) { $dropdown.hide(); return; }
             self._searchTimer = setTimeout(function () {
                 self.buscar(q, $dropdown);
             }, 300);
         });
 
-        // Cerrar dropdown al hacer clic fuera
         $(document).off('click.ave-inmueble').on('click.ave-inmueble', function (e) {
             if (!$(e.target).closest('.ave-search-input-wrapper').length) {
                 $dropdown.hide();
             }
         });
 
-        // Botones del modal
         this.view.$el.find('#btn-guardar-inmueble').off('click').on('click', function () {
             self.guardarDesdeModal();
         });
 
-        // Botón Editar en la tarjeta del inmueble seleccionado
         this.view.$el.find('[data-action="editar-inmueble"]').off('click').on('click', function () {
             if (self.inmuebleActual) {
                 self.abrirModalEditar(self.inmuebleActual);
             }
+        });
+
+        // ← NUEVO: setup de foto al abrir cada modal
+        this.view.$el.find('#modalInmueble').off('show.bs.modal').on('show.bs.modal', function () {
+            self.setupFoto();
+        });
+    };
+
+    InmuebleManager.prototype.setupFoto = function () {
+        var self    = this;
+        var $file   = this.view.$el.find('#inm-m-foto');
+        var $prev   = this.view.$el.find('#inm-m-foto-preview');
+        var $img    = $prev.find('img');
+        var $fotoId = this.view.$el.find('#inm-m-foto-id');
+
+        $file.off('change').on('change', function (e) {
+            var file = e.target.files[0];
+            if (!file) return;
+
+            if (!file.type.startsWith('image/')) {
+                Espo.Ui.warning('Solo se permiten imágenes');
+                $file.val('');
+                return;
+            }
+            if (file.size > 2 * 1024 * 1024) {
+                Espo.Ui.warning('La imagen no debe superar los 2MB');
+                $file.val('');
+                return;
+            }
+
+            // Preview local inmediato
+            var reader = new FileReader();
+            reader.onload = function (ev) {
+                $img.attr('src', ev.target.result);
+                $prev.show();
+            };
+            reader.readAsDataURL(file);
+
+            // Subir al servidor (reutiliza el mismo endpoint)
+            var formData = new FormData();
+            formData.append('file', file);
+
+            var headers = {};
+            var csrfToken = document.cookie.match(/ESPO_CSRF_TOKEN=([^;]+)/);
+            if (csrfToken) headers['X-Csrf-Token'] = csrfToken[1];
+
+            fetch('api/v1/AvePrincipal/action/uploadFoto', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: headers,
+                body: formData
+            })
+            .then(function (r) {
+                if (!r.ok) return r.text().then(function (t) { throw new Error('HTTP ' + r.status + ': ' + t); });
+                return r.json();
+            })
+            .then(function (data) {
+                if (data.success && data.id) {
+                    $fotoId.val(data.id);
+                    Espo.Ui.success('Foto cargada');
+                } else {
+                    Espo.Ui.error('Error al subir la foto: ' + (data.error || ''));
+                    $img.attr('src', ''); $prev.hide(); $file.val('');
+                }
+            })
+            .catch(function (err) {
+                Espo.Ui.error('Error de red: ' + err.message);
+                $img.attr('src', ''); $prev.hide(); $file.val('');
+            });
+        });
+
+        this.view.$el.find('#inm-m-foto-remove').off('click').on('click', function () {
+            $file.val('');
+            $prev.hide();
+            $img.attr('src', '');
+            $fotoId.val('');
         });
     };
 
@@ -93,7 +163,7 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
     };
 
     InmuebleManager.prototype.mostrarInmueble = function (data) {
-        this.inmuebleId = data.id;
+        this.inmuebleId     = data.id;
         this.inmuebleActual = data;
 
         this.view.$el.find('#inm-nombre-propietario').text(data.nombrePropietario || '-');
@@ -105,6 +175,14 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
         this.view.$el.find('#inm-hab-ban').text((data.numHabitaciones || '-') + ' hab / ' + (data.numBanos || '-') + ' baños');
         var ubicacion = [data.urbanizacion, data.ciudad, data.estado].filter(Boolean).join(', ');
         this.view.$el.find('#inm-ubicacion').text(ubicacion || '-');
+
+        // ← NUEVO: foto en tarjeta
+        var $fotoEl = this.view.$el.find('#inm-card-foto');
+        if (data.fotoId) {
+            $fotoEl.html('<img src="api/v1/Attachment/file/' + data.fotoId + '" class="ave-inm-card-foto" alt="foto inmueble">');
+        } else {
+            $fotoEl.html('<div class="ave-inm-card-foto-empty"><i class="fas fa-image"></i><span>Sin foto</span></div>');
+        }
 
         this.view.$el.find('#inmueble-seleccionado').show();
         this.view.$el.find('#inmueble-vacio').hide();
@@ -176,6 +254,10 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
         this.view.$el.find('#inm-m-ascensores').prop('checked', false);
         this.view.$el.find('#inm-m-terraza').prop('checked', false);
         this.view.$el.find('#inm-m-descripcion').val('');
+        this.view.$el.find('#inm-m-foto').val('');
+        this.view.$el.find('#inm-m-foto-id').val('');
+        this.view.$el.find('#inm-m-foto-preview').hide();
+        this.view.$el.find('#inm-m-foto-preview img').attr('src', '');
     };
 
     // ─────────────────────────────────────────────
@@ -205,6 +287,15 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
         this.view.$el.find('#inm-m-ascensores').prop('checked', inmueble.ascensores || false);
         this.view.$el.find('#inm-m-terraza').prop('checked', inmueble.terraza || false);
         this.view.$el.find('#inm-m-descripcion').val(inmueble.descripcion || '');
+        if (inmueble.fotoId) {
+            this.view.$el.find('#inm-m-foto-id').val(inmueble.fotoId);
+            this.view.$el.find('#inm-m-foto-preview img').attr('src', 'api/v1/Attachment/file/' + inmueble.fotoId);
+            this.view.$el.find('#inm-m-foto-preview').show();
+        } else {
+            this.view.$el.find('#inm-m-foto-id').val('');
+            this.view.$el.find('#inm-m-foto-preview').hide();
+            this.view.$el.find('#inm-m-foto-preview img').attr('src', '');
+        }
     };
 
     // ─────────────────────────────────────────────
@@ -224,49 +315,47 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
         $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Guardando...');
 
         var data = {
-            id: this.view.$el.find('#inm-m-id').val() || null,
-            nombrePropietario: nombrePropietario,
-            tipoPropiedad: this.view.$el.find('#inm-m-tipoPropiedad').val(),
-            subtipoPropiedad: this.view.$el.find('#inm-m-subtipoPropiedad').val(),
-            estado: this.view.$el.find('#inm-m-estado').val(),
-            municipio: this.view.$el.find('#inm-m-municipio').val(),
-            parroquia: this.view.$el.find('#inm-m-parroquia').val(),
-            ciudad: this.view.$el.find('#inm-m-ciudad').val(),
-            urbanizacion: this.view.$el.find('#inm-m-urbanizacion').val(),
-            avenidaCalle: this.view.$el.find('#inm-m-avenidaCalle').val(),
-            edificioCasa: this.view.$el.find('#inm-m-edificioCasa').val(),
-            areaConstruida: parseFloat(this.view.$el.find('#inm-m-areaConstruida').val()) || null,
-            areaTerreno: parseFloat(this.view.$el.find('#inm-m-areaTerreno').val()) || null,
-            antiguedad: parseInt(this.view.$el.find('#inm-m-antiguedad').val()) || null,
-            numHabitaciones: parseFloat(this.view.$el.find('#inm-m-numHabitaciones').val()) || null,
-            numBanos: parseFloat(this.view.$el.find('#inm-m-numBanos').val()) || null,
+            id:                    this.view.$el.find('#inm-m-id').val() || null,
+            nombrePropietario:     nombrePropietario,
+            tipoPropiedad:         this.view.$el.find('#inm-m-tipoPropiedad').val(),
+            subtipoPropiedad:      this.view.$el.find('#inm-m-subtipoPropiedad').val(),
+            estado:                this.view.$el.find('#inm-m-estado').val(),
+            municipio:             this.view.$el.find('#inm-m-municipio').val(),
+            parroquia:             this.view.$el.find('#inm-m-parroquia').val(),
+            ciudad:                this.view.$el.find('#inm-m-ciudad').val(),
+            urbanizacion:          this.view.$el.find('#inm-m-urbanizacion').val(),
+            avenidaCalle:          this.view.$el.find('#inm-m-avenidaCalle').val(),
+            edificioCasa:          this.view.$el.find('#inm-m-edificioCasa').val(),
+            areaConstruida:        parseFloat(this.view.$el.find('#inm-m-areaConstruida').val()) || null,
+            areaTerreno:           parseFloat(this.view.$el.find('#inm-m-areaTerreno').val()) || null,
+            antiguedad:            parseInt(this.view.$el.find('#inm-m-antiguedad').val()) || null,
+            numHabitaciones:       parseFloat(this.view.$el.find('#inm-m-numHabitaciones').val()) || null,
+            numBanos:              parseFloat(this.view.$el.find('#inm-m-numBanos').val()) || null,
             puestoEstacionamiento: parseInt(this.view.$el.find('#inm-m-puestoEstacionamiento').val()) || null,
-            piso: this.view.$el.find('#inm-m-piso').val(),
-            servicios: this.view.$el.find('#inm-m-servicios').val(),
-            seguridad: this.view.$el.find('#inm-m-seguridad').val(),
-            ascensores: this.view.$el.find('#inm-m-ascensores').is(':checked'),
-            terraza: this.view.$el.find('#inm-m-terraza').is(':checked'),
-            descripcion: this.view.$el.find('#inm-m-descripcion').val(),
-            teamId: this.view.teamId
+            piso:                  this.view.$el.find('#inm-m-piso').val(),
+            servicios:             this.view.$el.find('#inm-m-servicios').val(),
+            seguridad:             this.view.$el.find('#inm-m-seguridad').val(),
+            ascensores:            this.view.$el.find('#inm-m-ascensores').is(':checked'),
+            terraza:               this.view.$el.find('#inm-m-terraza').is(':checked'),
+            descripcion:           this.view.$el.find('#inm-m-descripcion').val(),
+            fotoId:                this.view.$el.find('#inm-m-foto-id').val() || null,  // ← NUEVO
+            teamId:                this.view.teamId
         };
 
         Espo.Ajax.postRequest('AvePrincipal/action/crearInmueble', data)
             .then(function (response) {
                 if (response.success) {
-                    Espo.Ui.success(data.id ? 'Inmueble actualizado correctamente' : 'Inmueble creado correctamente');
+                    Espo.Ui.success(data.id ? 'Inmueble actualizado' : 'Inmueble creado');
                     self.view.$el.find('#modalInmueble').modal('hide');
                     self.seleccionarInmueble(response.data);
                 } else {
                     Espo.Ui.error(response.error || 'Error al guardar el inmueble');
                 }
             })
-            .catch(function () {
-                Espo.Ui.error('Error al guardar el inmueble');
-            })
-            .finally(function () {
-                $btn.prop('disabled', false).html(orig);
-            });
+            .catch(function () { Espo.Ui.error('Error al guardar el inmueble'); })
+            .finally(function () { $btn.prop('disabled', false).html(orig); });
     };
+
 
     // ─────────────────────────────────────────────
     // Getters y helpers

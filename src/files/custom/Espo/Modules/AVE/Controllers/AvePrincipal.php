@@ -56,6 +56,17 @@ class AvePrincipal extends RecordBase
         return $this->getServiceFactory()->create('AvePrincipal')->getFactoresPorTipo($tipo, $teamId);
     }
 
+    public function getActionGetCatalogoAnalisis(Request $request, Response $response): array
+    {
+        $teamId = $request->getQueryParam('teamId') ?? null;
+        return $this->getServiceFactory()->create('AvePrincipal')->getCatalogoAnalisis($teamId);
+    }
+
+    public function postActionCrearAnalisisTitulo(Request $request, Response $response): array
+    {
+        return $this->getServiceFactory()->create('AvePrincipal')->crearAnalisisTitulo($request->getParsedBody());
+    }
+
     public function postActionCrearFactor(Request $request, Response $response): array
     {
         return $this->getServiceFactory()->create('AvePrincipal')->crearFactor($request->getParsedBody());
@@ -65,44 +76,75 @@ class AvePrincipal extends RecordBase
     {
         try {
             if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
-                throw new BadRequest("No se recibió ningún archivo o hubo un error");
+                throw new BadRequest("No se recibió ningún archivo o hubo un error de subida");
             }
 
             $file = $_FILES['file'];
+
+            // Validar tipo de archivo
+            $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (!in_array($file['type'], $allowedTypes)) {
+                throw new BadRequest("Tipo de archivo no permitido. Solo se aceptan imágenes JPG, PNG, GIF o WEBP.");
+            }
+
             $content = file_get_contents($file['tmp_name']);
-            $name = $file['name'];
-            $type = $file['type'];
+            $name    = basename($file['name']);
+            $type    = $file['type'];
 
-            $em = $this->getContainer()->get('entityManager');
+            $em = $this->getEntityManager();
 
+            // Crear entidad Attachment
             $attachment = $em->getNewEntity('Attachment');
             $attachment->set([
-                'name' => $name,
-                'type' => $type,
-                'size' => $file['size'],
-                'role' => 'Attachment',
+                'name'        => $name,
+                'type'        => $type,
+                'size'        => $file['size'],
+                'role'        => 'Attachment',
                 'relatedType' => 'AveInmuebleReferencia',
-                'field' => 'foto'
+                'field'       => 'foto',
             ]);
             $em->saveEntity($attachment);
 
-            $rootDir = realpath(__DIR__ . '/../../../../');
+            // Usar el FileStorageManager de EspoCRM si está disponible,
+            // si no, construir la ruta de forma segura
+            $attachmentId = $attachment->getId();
+
+            // Buscar la raíz de EspoCRM subiendo desde el directorio del controlador
+            // Estructura: custom/Espo/Modules/AVE/Controllers/ → subir 5 niveles
+            $rootDir = dirname(__DIR__, 5); // Controllers → AVE → Modules → Espo → custom → raíz
             $uploadDir = $rootDir . '/data/upload/';
-            
+
+            // Verificar que el directorio existe
             if (!is_dir($uploadDir)) {
-                mkdir($uploadDir, 0777, true);
+                if (!mkdir($uploadDir, 0775, true)) {
+                    $em->removeEntity($attachment);
+                    throw new BadRequest("No se pudo crear el directorio de uploads: " . $uploadDir);
+                }
             }
 
-            $targetPath = $uploadDir . $attachment->getId();
+            // Verificar que el directorio es escribible
+            if (!is_writable($uploadDir)) {
+                $em->removeEntity($attachment);
+                throw new BadRequest("El directorio de uploads no tiene permisos de escritura: " . $uploadDir);
+            }
+
+            $targetPath = $uploadDir . $attachmentId;
+
             if (file_put_contents($targetPath, $content) === false) {
                 $em->removeEntity($attachment);
-                throw new BadRequest("No se pudo guardar el archivo en el servidor");
+                throw new BadRequest("No se pudo guardar el archivo. Ruta intentada: " . $targetPath);
             }
 
-            return ['success' => true, 'id' => $attachment->getId()];
+            $GLOBALS['log']->info('AVE uploadFoto: archivo guardado en ' . $targetPath . ' (ID: ' . $attachmentId . ')');
+
+            return ['success' => true, 'id' => $attachmentId, 'name' => $name];
+
+        } catch (BadRequest $e) {
+            $GLOBALS['log']->error('AVE uploadFoto BadRequest: ' . $e->getMessage());
+            throw $e;
         } catch (\Exception $e) {
-            $GLOBALS['log']->error('Error en uploadFoto: ' . $e->getMessage());
-            throw new BadRequest("Error interno: " . $e->getMessage());
+            $GLOBALS['log']->error('AVE uploadFoto Exception: ' . $e->getMessage() . ' en ' . $e->getFile() . ':' . $e->getLine());
+            throw new BadRequest("Error interno al subir foto: " . $e->getMessage());
         }
     }
 

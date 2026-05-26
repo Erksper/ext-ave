@@ -70,12 +70,15 @@ define('ave:views/ave-principal/detail', [
             },
             
             // Pestaña 6 — FODA
-            'click [data-action="nueva-foda"]': function () {
-                this.fodaManager.abrirModal();
+            'click [data-action="agregar-foda"]': function () {
+                this.fodaManager.abrirModalAgregar();
+            },
+            'click [data-action="nuevo-titulo-foda"]': function () {
+                this.fodaManager.abrirModalNuevoTitulo();
             },
             'click [data-action="eliminar-foda"]': function (e) {
                 var $btn = $(e.currentTarget);
-                this.fodaManager.eliminar($btn.data('tipo'), $btn.data('idx'));
+                this.fodaManager.eliminar($btn.data('tipo'), parseInt($btn.data('idx')));
             },
             
             // Pestaña 7 — Factores
@@ -90,12 +93,6 @@ define('ave:views/ave-principal/detail', [
             },
             
             // Pestaña 8 — Precio Sugerido
-            'click [data-action="recalcular-precios"]': function () {
-                this.precioManager.calcular();
-            },
-            'change #pesoOfertas, input #ajustePrecio': function () {
-                this.precioManager.calcular();
-            },
             
             // Pestaña 9 — Decisiones
             'click [data-action="agregar-decision"]': function () {
@@ -220,6 +217,7 @@ define('ave:views/ave-principal/detail', [
                     
                     // Cargar catálogos de items
                     self.factoresManager.cargarCatalogo(self.teamId);
+                    self.fodaManager.cargarCatalogo(self.teamId);
                     self.decisionesManager.cargarCatalogo(self.teamId);
                     self.canalesManager.cargarCatalogo(self.teamId);
                     self.planesManager.cargarCatalogo(self.teamId);
@@ -404,8 +402,8 @@ define('ave:views/ave-principal/detail', [
                     valorPromedio: parseFloat(this.$el.find('#valorPromedio').val()) || null,
                     precioOriginal: parseFloat(this.$el.find('#precioOriginal').val()) || null,
                     precioSugerido: parseFloat(this.$el.find('#precioSugerido').val()) || null,
-                    ajustePrecio: parseFloat(this.$el.find('#ajustePrecio').val()) || null,
-                    pesoOfertas: parseFloat(this.$el.find('#pesoOfertas').val()) || null   // <-- Agregar esta línea
+                    ajustePrecio: parseFloat(this.$el.find('#ajustePrecio').val()) || 0,
+                    pesoOfertas: parseFloat(this.$el.find('#pesoOfertas').val())
                 }
             };
 

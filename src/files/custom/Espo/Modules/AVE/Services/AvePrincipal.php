@@ -99,7 +99,7 @@ class AvePrincipal extends RecordService
                 'ave'         => $this->formatAvePrincipal($entity),
                 'inmueble'    => $inmueble,
                 'referencias' => $this->getReferencias($id),
-                'analisis'    => $this->getAnalisis($id),
+                'analisis'    => $this->getAnalisisRespuestas($id),
                 'factores'    => $this->getItemsRelacionados($id, 'factor'),
                 'decisiones'  => $this->getItemsRelacionados($id, 'decision'),
                 'canales'     => $this->getItemsRelacionados($id, 'canal'),
@@ -155,7 +155,7 @@ class AvePrincipal extends RecordService
 
         // Guardar análisis FODA (pestaña 6)
         if (isset($data->analisis) && is_array($data->analisis)) {
-            $this->guardarAnalisis($data->aveId, $data->analisis);
+            $this->guardarAnalisisRespuestas($data->aveId, $data->analisis);
         }
 
         // Guardar items relacionados (pestañas 7, 9, 10, 11)
@@ -176,15 +176,22 @@ class AvePrincipal extends RecordService
         // Guardar pesos desde el payload
         if (isset($data->precio)) {
             $p = $data->precio;
-            $this->setIfSet($entity, 'valorMax', $p->valorMax ?? null);
-            $this->setIfSet($entity, 'precioMax', $p->precioMax ?? null);
-            $this->setIfSet($entity, 'valorMin', $p->valorMin ?? null);
-            $this->setIfSet($entity, 'precioMin', $p->precioMin ?? null);
-            $this->setIfSet($entity, 'valorPromedio', $p->valorPromedio ?? null);
-            $this->setIfSet($entity, 'precioOriginal', $p->precioOriginal ?? null);
-            $this->setIfSet($entity, 'precioSugerido', $p->precioSugerido ?? null);
-            $this->setIfSet($entity, 'ajustePrecio', $p->ajustePrecio ?? null);
-            $this->setIfSet($entity, 'pesoOfertas', $p->pesoOfertas ?? null);
+            $this->setIfSet($entity, 'valorMax',       isset($p->valorMax)       ? (float)$p->valorMax       : null);
+            $this->setIfSet($entity, 'precioMax',      isset($p->precioMax)      ? (float)$p->precioMax      : null);
+            $this->setIfSet($entity, 'valorMin',       isset($p->valorMin)       ? (float)$p->valorMin       : null);
+            $this->setIfSet($entity, 'precioMin',      isset($p->precioMin)      ? (float)$p->precioMin      : null);
+            $this->setIfSet($entity, 'valorPromedio',  isset($p->valorPromedio)  ? (float)$p->valorPromedio  : null);
+            $this->setIfSet($entity, 'precioOriginal', isset($p->precioOriginal) ? (float)$p->precioOriginal : null);
+            $this->setIfSet($entity, 'precioSugerido', isset($p->precioSugerido) ? (float)$p->precioSugerido : null);
+            $this->setIfSet($entity, 'ajustePrecio',   isset($p->ajustePrecio)   ? (float)$p->ajustePrecio   : null);
+
+            // pesoOfertas — guardar siempre que venga, aunque sea 0
+            if (isset($p->pesoOfertas)) {
+                $pesoOfertas = (float)$p->pesoOfertas;
+                $pesoOfertas = max(0, min(100, $pesoOfertas)); // clamp 0-100
+                $entity->set('pesoOfertas', $pesoOfertas);
+                $entity->set('pesoVentas',  100 - $pesoOfertas);
+            }
         }
 
         // Recalcular precios basados en referencias guardadas
@@ -341,19 +348,25 @@ class AvePrincipal extends RecordService
         $em = $this->entityManager;
         $existentes = $em->getRDBRepository('AveInmuebleReferencia')
             ->where(['avePrincipalId' => $avePrincipalId])->find();
+
         $idsNuevos = array_filter(array_column($referencias, 'id'));
         foreach ($existentes as $ref) {
             if (!in_array($ref->getId(), $idsNuevos)) {
                 $em->removeEntity($ref);
             }
         }
+
+        // fotoId se maneja por separado (ver abajo)
         $campos = [
             'tipo','tipoPropiedad','usarCalculo','subtipoPropiedad','valorReferencial','areaTerreno',
             'areaConstruida','antiguedad','habitaciones','banos','estacionamiento','piso','ascensores',
-            'terraza','acabados','seguridad','valorm2','descripcion','enlace','fotoId'
+            'terraza','acabados','seguridad','valorm2','descripcion','enlace'
+            // ← fotoId removido del array genérico
         ];
+
         foreach ($referencias as $refData) {
             $refArr = (array) $refData;
+
             if (!empty($refArr['id'])) {
                 $ref = $em->getEntity('AveInmuebleReferencia', $refArr['id']);
             } else {
@@ -361,11 +374,27 @@ class AvePrincipal extends RecordService
                 $ref->set('avePrincipalId', $avePrincipalId);
             }
             if (!$ref) continue;
+
             foreach ($campos as $campo) {
                 if (array_key_exists($campo, $refArr)) {
                     $ref->set($campo, $refArr[$campo]);
                 }
             }
+
+            // Manejar fotoId explícitamente
+            if (array_key_exists('fotoId', $refArr) && !empty($refArr['fotoId'])) {
+                $ref->set('fotoId', $refArr['fotoId']);
+                // En EspoCRM, los campos image tienen un campo virtual para el nombre
+                // Intentar obtener el nombre del attachment para completar el campo foto
+                $attachment = $em->getEntity('Attachment', $refArr['fotoId']);
+                if ($attachment) {
+                    $ref->set('foto', $refArr['fotoId']); // algunos campos image usan el ID directamente
+                }
+            } elseif (array_key_exists('fotoId', $refArr) && empty($refArr['fotoId'])) {
+                // Si se envió fotoId vacío, limpiar la foto
+                $ref->set('fotoId', null);
+            }
+
             $em->saveEntity($ref);
         }
     }
@@ -463,6 +492,99 @@ class AvePrincipal extends RecordService
         return ['success' => true, 'data' => $result];
     }
 
+    public function getCatalogoAnalisis(?string $teamId): array
+    {
+        $repo  = $this->entityManager->getRDBRepository('AveAnalisis');
+        $where = [
+            'OR' => [
+                ['predeterminado' => true],
+                ['teamId'         => $teamId]
+            ]
+        ];
+        $items  = $repo->where($where)->order('name', 'ASC')->find();
+        $result = [];
+        foreach ($items as $item) {
+            $result[] = [
+                'id'            => $item->getId(),
+                'name'          => $item->get('name'),
+                'predeterminado'=> $item->get('predeterminado'),
+            ];
+        }
+        return ['success' => true, 'data' => $result];
+    }
+
+    private function getAnalisisRespuestas(string $avePrincipalId): array
+    {
+        $items = $this->entityManager->getRDBRepository('AveAnalisisRespuesta')
+            ->where(['avePrincipalId' => $avePrincipalId])
+            ->order('id', 'ASC')
+            ->find();
+
+        $result = [];
+        foreach ($items as $item) {
+            // Cargar el título desde la entidad catálogo
+            $titulo = $this->entityManager->getEntity('AveAnalisis', $item->get('aveAnalisisId'));
+            $result[] = [
+                'id'            => $item->getId(),
+                'aveAnalisisId' => $item->get('aveAnalisisId'),
+                'tituloName'    => $titulo ? $titulo->get('name') : '',
+                'tipo'          => $item->get('tipo'),
+                'descripcion'   => $item->get('descripcion'),
+            ];
+        }
+        return $result;
+    }
+
+    private function guardarAnalisisRespuestas(string $avePrincipalId, array $respuestas): void
+    {
+        $em = $this->entityManager;
+
+        // Borrar todas las respuestas previas del AVE
+        $existentes = $em->getRDBRepository('AveAnalisisRespuesta')
+            ->where(['avePrincipalId' => $avePrincipalId])
+            ->find();
+        foreach ($existentes as $r) {
+            $em->removeEntity($r);
+        }
+
+        // Insertar las nuevas
+        foreach ($respuestas as $resp) {
+            $arr = (array) $resp;
+            if (empty($arr['aveAnalisisId']) || empty($arr['tipo']) || empty($arr['descripcion'])) {
+                continue;
+            }
+            $entity = $em->getNewEntity('AveAnalisisRespuesta');
+            $entity->set('avePrincipalId',  $avePrincipalId);
+            $entity->set('aveAnalisisId',   $arr['aveAnalisisId']);
+            $entity->set('tipo',            $arr['tipo']);
+            $entity->set('descripcion',     $arr['descripcion']);
+            $em->saveEntity($entity);
+        }
+    }
+
+    public function crearAnalisisTitulo(\stdClass $data): array
+    {
+        $name = trim($data->name ?? $data->nombre ?? '');
+        if (!$name) throw new BadRequest("El nombre es requerido.");
+
+        $em     = $this->entityManager;
+        $entity = $em->getNewEntity('AveAnalisis');
+        $entity->set('name', $name);
+        $entity->set('predeterminado', !empty($data->predeterminado));
+        if (!empty($data->teamId)) {
+            $entity->set('teamId', $data->teamId);
+        }
+        $em->saveEntity($entity);
+
+        return [
+            'success' => true,
+            'data'    => [
+                'id'   => $entity->getId(),
+                'name' => $entity->get('name'),
+            ],
+        ];
+    }
+
     public function crearInmueble(\stdClass $data): array
     {
         $em = $this->entityManager;
@@ -480,7 +602,7 @@ class AvePrincipal extends RecordService
             'nombrePropietario', 'tipoPropiedad', 'subtipoPropiedad', 'estado', 'municipio', 'parroquia', 'ciudad',
             'avenidaCalle', 'edificioCasa', 'urbanizacion', 'areaConstruida', 'areaTerreno', 'antiguedad',
             'numHabitaciones', 'numBanos', 'puestoEstacionamiento', 'piso', 'ascensores', 'servicios',
-            'terraza', 'seguridad', 'descripcion'
+            'terraza', 'seguridad', 'descripcion', 'fotoId'
         ];
         foreach ($campos as $campo) {
             if (property_exists($data, $campo) && $data->$campo !== null && $data->$campo !== '') {
@@ -518,24 +640,35 @@ class AvePrincipal extends RecordService
     public function getFactoresPorTipo(string $tipo, ?string $teamId): array
     {
         $repo = $this->entityManager->getRDBRepository('AveFactoresDecisionesCanalesPlan');
-        $where = [
-            'tipo' => $tipo,
-            'OR' => [
-                'predeterminado' => true,
-                'teamId' => $teamId
-            ]
-        ];
-        $items = $repo->where($where)->order('name', 'ASC')->find();
+
+        // Construir condición: predeterminados + los del team del usuario
+        if ($teamId) {
+            $where = [
+                'type' => $tipo,
+                'OR'   => [
+                    ['predeterminado' => true],
+                    ['teamId'         => $teamId]
+                ]
+            ];
+        } else {
+            // Sin team: solo predeterminados
+            $where = [
+                'tipo'          => $tipo,
+                'predeterminado'=> true
+            ];
+        }
+
+        $items  = $repo->where($where)->order('name', 'ASC')->find();
         $result = [];
         foreach ($items as $item) {
             $result[] = [
-                'id' => $item->getId(),
-                'name' => $item->get('name'),
-                'descripcion' => $item->get('descripcion'),
-                'tipo' => $item->get('tipo'),
-                'impacto' => $item->get('impacto'),
-                'predeterminado' => $item->get('predeterminado'),
-                'teamId' => $item->get('teamId')
+                'id'            => $item->getId(),
+                'name'          => $item->get('name'),
+                'descripcion'   => $item->get('descripcion'),
+                'tipo'          => $item->get('tipo'),
+                'impacto'       => $item->get('impacto'),
+                'predeterminado'=> (bool)$item->get('predeterminado'),
+                'teamId'        => $item->get('teamId'),
             ];
         }
         return ['success' => true, 'data' => $result];

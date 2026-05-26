@@ -10,7 +10,7 @@
                 <i class="fas fa-file-invoice-dollar"></i>
             </div>
             <div>
-                <h1 class="ave-page-title">Avalúo de Inmueble</h1>
+                <h1 class="ave-page-title">Análisis para una Venta Exitosa</h1>
                 <p class="ave-page-subtitle" id="ave-subtitle">Cargando...</p>
             </div>
         </div>
@@ -36,15 +36,15 @@
         <!-- Navegación de pestañas -->
         <div class="ave-tabs-nav" id="ave-tabs-nav">
             <button class="ave-tab-btn active" data-tab="tab-1"><span class="tab-num">1</span> Datos Generales</button>
-            <button class="ave-tab-btn" data-tab="tab-2"><span class="tab-num">2</span> Inmueble</button>
+            <button class="ave-tab-btn" data-tab="tab-2"><span class="tab-num">2</span> Datps del Inmueble</button>
             <button class="ave-tab-btn" data-tab="tab-3"><span class="tab-num">3</span> Situación Legal</button>
-            <button class="ave-tab-btn" data-tab="tab-4"><span class="tab-num">4</span> Ref. Promoción</button>
-            <button class="ave-tab-btn" data-tab="tab-5"><span class="tab-num">5</span> Ref. Vendidos</button>
-            <button class="ave-tab-btn" data-tab="tab-6"><span class="tab-num">6</span> FODA</button>
-            <button class="ave-tab-btn" data-tab="tab-7"><span class="tab-num">7</span> Factores</button>
+            <button class="ave-tab-btn" data-tab="tab-4"><span class="tab-num">4</span> Referencias en Promoción</button>
+            <button class="ave-tab-btn" data-tab="tab-5"><span class="tab-num">5</span> Referencias Vendidos</button>
+            <button class="ave-tab-btn" data-tab="tab-6"><span class="tab-num">6</span> Fortalezas y debilidades</button>
+            <button class="ave-tab-btn" data-tab="tab-7"><span class="tab-num">7</span> Factores que influyen en el precio</button>
             <button class="ave-tab-btn" data-tab="tab-8"><span class="tab-num">8</span> Precio Sugerido</button>
-            <button class="ave-tab-btn" data-tab="tab-9"><span class="tab-num">9</span> Decisiones</button>
-            <button class="ave-tab-btn" data-tab="tab-10"><span class="tab-num">10</span> Medios</button>
+            <button class="ave-tab-btn" data-tab="tab-9"><span class="tab-num">9</span> Opciones de decisión</button>
+            <button class="ave-tab-btn" data-tab="tab-10"><span class="tab-num">10</span> Medios de promocion</button>
             <button class="ave-tab-btn" data-tab="tab-11"><span class="tab-num">11</span> Plan de Trabajo</button>
             <button class="ave-tab-btn" data-tab="tab-12"><span class="tab-num">12</span> Vista Previa</button>
         </div>
@@ -151,16 +151,22 @@
                                     </div>
                                 </div>
                                 <div class="ave-inmueble-card-body">
-                                    <div class="row">
-                                        <div class="col-md-3"><div class="ave-info-item"><div class="ave-info-label">Referencia</div><div class="ave-info-value" id="inm-referencia">-</div></div></div>
-                                        <div class="col-md-3"><div class="ave-info-item"><div class="ave-info-label">Tipo de Propiedad</div><div class="ave-info-value" id="inm-tipo">-</div></div></div>
-                                        <div class="col-md-3"><div class="ave-info-item"><div class="ave-info-label">Sub Tipo</div><div class="ave-info-value" id="inm-subtipo">-</div></div></div>
-                                        <div class="col-md-3"><div class="ave-info-item"><div class="ave-info-label">Área Construida</div><div class="ave-info-value" id="inm-area">-</div></div></div>
+                                    <div class="ave-inm-card-foto-col" id="inm-card-foto">
+                                        <div class="ave-inm-card-foto-empty"><i class="fas fa-image"></i><span>Sin foto</span></div>
                                     </div>
-                                    <div class="row" style="margin-top:12px;">
-                                        <div class="col-md-4"><div class="ave-info-item"><div class="ave-info-label">Área Terreno</div><div class="ave-info-value" id="inm-area-terreno">-</div></div></div>
-                                        <div class="col-md-4"><div class="ave-info-item"><div class="ave-info-label">Habitaciones / Baños</div><div class="ave-info-value" id="inm-hab-ban">-</div></div></div>
-                                        <div class="col-md-4"><div class="ave-info-item"><div class="ave-info-label">Ubicación</div><div class="ave-info-value" id="inm-ubicacion">-</div></div></div>
+                                    <!-- Datos existentes -->
+                                    <div class="ave-inm-card-datos">
+                                        <div class="row">
+                                            <div class="col-md-3"><div class="ave-info-item"><div class="ave-info-label">Referencia</div><div class="ave-info-value" id="inm-referencia">-</div></div></div>
+                                            <div class="col-md-3"><div class="ave-info-item"><div class="ave-info-label">Tipo de Propiedad</div><div class="ave-info-value" id="inm-tipo">-</div></div></div>
+                                            <div class="col-md-3"><div class="ave-info-item"><div class="ave-info-label">Sub Tipo</div><div class="ave-info-value" id="inm-subtipo">-</div></div></div>
+                                            <div class="col-md-3"><div class="ave-info-item"><div class="ave-info-label">Área Construida</div><div class="ave-info-value" id="inm-area">-</div></div></div>
+                                        </div>
+                                        <div class="row" style="margin-top:12px;">
+                                            <div class="col-md-4"><div class="ave-info-item"><div class="ave-info-label">Área Terreno</div><div class="ave-info-value" id="inm-area-terreno">-</div></div></div>
+                                            <div class="col-md-4"><div class="ave-info-item"><div class="ave-info-label">Habitaciones / Baños</div><div class="ave-info-value" id="inm-hab-ban">-</div></div></div>
+                                            <div class="col-md-4"><div class="ave-info-item"><div class="ave-info-label">Ubicación</div><div class="ave-info-value" id="inm-ubicacion">-</div></div></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -269,19 +275,43 @@
                         </h4>
                     </div>
                     <div class="ave-panel-body">
-                        <div style="margin-bottom:16px;">
-                            <button class="ave-btn ave-btn-primary" data-action="nueva-foda"><i class="fas fa-plus"></i> Agregar Fortaleza / Debilidad</button>
+
+                        <!-- Selector -->
+                        <div class="row" style="margin-bottom:16px;">
+                            <div class="col-md-7">
+                                <label class="ave-form-label">Seleccionar título</label>
+                                <select id="select-foda" class="ave-form-control">
+                                    <option value="">-- Seleccione un título --</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2" style="padding-top:24px;">
+                                <button class="ave-btn ave-btn-primary" data-action="agregar-foda" style="width:100%;">
+                                    <i class="fas fa-plus"></i> Agregar
+                                </button>
+                            </div>
+                            <div class="col-md-3" style="padding-top:24px;">
+                                <button class="ave-btn ave-btn-secondary" data-action="nuevo-titulo-foda" style="width:100%;">
+                                    <i class="fas fa-plus-circle"></i> Nuevo título
+                                </button>
+                            </div>
                         </div>
+
+                        <!-- Grid fortalezas / debilidades -->
                         <div class="ave-foda-grid">
                             <div class="ave-foda-fortaleza">
-                                <div class="ave-foda-col-title"><i class="fas fa-thumbs-up"></i> Fortalezas</div>
+                                <div class="ave-foda-col-title">
+                                    <i class="fas fa-thumbs-up"></i> Fortalezas
+                                </div>
                                 <div class="ave-foda-list" id="foda-fortalezas"></div>
                             </div>
                             <div class="ave-foda-debilidad">
-                                <div class="ave-foda-col-title"><i class="fas fa-thumbs-down"></i> Debilidades</div>
+                                <div class="ave-foda-col-title">
+                                    <i class="fas fa-thumbs-down"></i> Debilidades
+                                </div>
                                 <div class="ave-foda-list" id="foda-debilidades"></div>
                             </div>
                         </div>
+
                     </div>
                 </div>
             </div>
@@ -371,22 +401,19 @@
                         
                         <!-- Pesos de ponderación -->
                         <div class="row" style="margin-top: 20px;">
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <div class="ave-form-group">
                                     <label class="ave-form-label">Peso Ofertas (%)</label>
-                                    <input type="number" id="pesoOfertas" class="ave-form-control" step="1" min="0" max="100" value="70">
+                                    <input type="number" id="pesoOfertas" class="ave-form-control"
+                                        step="1" min="0" max="100" value="70">
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-6">
                                 <div class="ave-form-group">
                                     <label class="ave-form-label">Peso Ventas (%)</label>
-                                    <input type="number" id="pesoVentas" class="ave-form-control" readonly disabled style="background:#f5f5f5;" value="30">
+                                    <input type="number" id="pesoVentas" class="ave-form-control"
+                                        readonly disabled style="background:#f5f5f5;" value="30">
                                 </div>
-                            </div>
-                            <div class="col-md-4" style="padding-top: 24px;">
-                                <button class="ave-btn ave-btn-primary" data-action="recalcular-precios" style="width:100%;">
-                                    <i class="fas fa-sync-alt"></i> Recalcular
-                                </button>
                             </div>
                         </div>
                         
@@ -662,7 +689,25 @@
                     <div class="col-md-3"><div class="ave-checkbox-wrapper"><input type="checkbox" id="inm-m-terraza"><label class="ave-checkbox-label" for="inm-m-terraza">Terraza</label></div></div>
                 </div>
                 <div class="row">
-                    <div class="col-md-12"><div class="ave-form-group"><label class="ave-form-label">Descripción</label><textarea id="inm-m-descripcion" class="ave-form-control" rows="3"></textarea></div></div>
+                    <div class="col-md-8">
+                        <div class="ave-form-group">
+                            <label class="ave-form-label">Descripción</label>
+                            <textarea id="inm-m-descripcion" class="ave-form-control" rows="3"></textarea>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="ave-form-group">
+                            <label class="ave-form-label">Foto del inmueble</label>
+                            <input type="file" id="inm-m-foto" class="ave-form-control" accept="image/*">
+                            <input type="hidden" id="inm-m-foto-id">
+                            <div id="inm-m-foto-preview" style="display:none; margin-top:8px;">
+                                <img src="" style="max-width:100%; max-height:120px; border-radius:8px; object-fit:cover; border:1px solid var(--ave-border);">
+                                <button type="button" id="inm-m-foto-remove" class="ave-btn ave-btn-danger ave-btn-sm" style="margin-top:6px; width:100%;">
+                                    <i class="fas fa-times"></i> Quitar foto
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -742,16 +787,78 @@
         <div class="modal-content">
             <div class="modal-header ave-modal-header">
                 <button type="button" class="ave-modal-close" data-dismiss="modal">&times;</button>
-                <h4 class="ave-modal-title"><i class="fas fa-balance-scale"></i> Nueva Fortaleza / Debilidad</h4>
+                <h4 class="ave-modal-title" id="modal-foda-titulo">
+                    <i class="fas fa-balance-scale"></i> Agregar al FODA
+                </h4>
             </div>
             <div class="modal-body" style="padding:24px;">
-                <div class="ave-form-group"><label class="ave-form-label required">Tipo</label><div style="display:flex; gap:20px;"><label><input type="radio" name="foda-tipo" value="fortaleza" checked> Fortaleza</label><label><input type="radio" name="foda-tipo" value="debilidad"> Debilidad</label></div></div>
-                <div class="ave-form-group"><label class="ave-form-label required">Título</label><input type="text" id="foda-nombre" class="ave-form-control"></div>
-                <div class="ave-form-group"><label class="ave-form-label">Detalle</label><textarea id="foda-detalle" class="ave-form-control" rows="3"></textarea></div>
+                <input type="hidden" id="foda-modal-analisis-id">
+                <div class="ave-form-group">
+                    <label class="ave-form-label">Título seleccionado</label>
+                    <input type="text" id="foda-modal-titulo-texto" class="ave-form-control" readonly
+                           style="background:#f5f5f5; font-weight:600;">
+                </div>
+                <div class="ave-form-group">
+                    <label class="ave-form-label required">Tipo</label>
+                    <div style="display:flex; gap:24px; padding:8px 0;">
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px;">
+                            <input type="radio" name="foda-tipo" value="fortaleza" checked>
+                            <span style="color:var(--ave-success); font-weight:600;">
+                                <i class="fas fa-thumbs-up"></i> Fortaleza
+                            </span>
+                        </label>
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px;">
+                            <input type="radio" name="foda-tipo" value="debilidad">
+                            <span style="color:var(--ave-danger); font-weight:600;">
+                                <i class="fas fa-thumbs-down"></i> Debilidad
+                            </span>
+                        </label>
+                    </div>
+                </div>
+                <div class="ave-form-group">
+                    <label class="ave-form-label required">Descripción</label>
+                    <textarea id="foda-descripcion" class="ave-form-control" rows="4"
+                              placeholder="Describa este factor para el inmueble avaluado..."></textarea>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="ave-btn ave-btn-secondary" data-dismiss="modal">Cancelar</button>
-                <button type="button" class="ave-btn ave-btn-primary" id="btn-guardar-foda"><i class="fas fa-save"></i> Agregar</button>
+                <button type="button" class="ave-btn ave-btn-primary" id="btn-guardar-foda">
+                    <i class="fas fa-plus"></i> Agregar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL — Nuevo título FODA -->
+<div class="modal fade" id="modalFodaTitulo" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header ave-modal-header">
+                <button type="button" class="ave-modal-close" data-dismiss="modal">&times;</button>
+                <h4 class="ave-modal-title">
+                    <i class="fas fa-plus-circle"></i> Nuevo título FODA
+                </h4>
+            </div>
+            <div class="modal-body" style="padding:24px;">
+                <div class="ave-form-group">
+                    <label class="ave-form-label required">Título</label>
+                    <input type="text" id="foda-nuevo-titulo" class="ave-form-control"
+                           placeholder="Ej: Ubicación privilegiada, Antigüedad del inmueble...">
+                </div>
+                <div class="ave-checkbox-wrapper">
+                    <input type="checkbox" id="foda-nuevo-predeterminado">
+                    <label class="ave-checkbox-label" for="foda-nuevo-predeterminado">
+                        Predeterminado (visible para todos los equipos)
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="ave-btn ave-btn-secondary" data-dismiss="modal">Cancelar</button>
+                <button type="button" class="ave-btn ave-btn-primary" id="btn-guardar-titulo-foda">
+                    <i class="fas fa-save"></i> Crear título
+                </button>
             </div>
         </div>
     </div>

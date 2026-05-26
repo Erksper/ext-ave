@@ -92,18 +92,18 @@
             "type": "datetime",
             "readOnly": true
         },
-        "peso_ofertas": {
+        "pesoOfertas": {
             "type": "float",
             "default": 70
         },
-        "peso_ventas": {
+        "pesoVentas": {
             "type": "float",
             "default": 30
         },
-        "rango_precio_min": {
+        "rangoPrecioMin": {
             "type": "float"
         },
-        "rango_precio_max": {
+        "rangoPrecioMax": {
             "type": "float"
         }
     },
@@ -133,6 +133,11 @@
             "entity": "AveFactoresDecisionesCanalesPlan",
             "foreign": "avePrincipales",
             "relationName": "ave_principal_item"
+        },
+        "aveAnalisisRespuestas": {
+            "type": "hasMany",
+            "entity": "AveAnalisisRespuesta",
+            "foreign": "avePrincipal"
         }
     },
     "collection": {
