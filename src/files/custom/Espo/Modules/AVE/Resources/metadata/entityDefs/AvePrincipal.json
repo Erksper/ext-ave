@@ -94,11 +94,11 @@
         },
         "pesoOfertas": {
             "type": "float",
-            "default": 70
+            "default": 50
         },
         "pesoVentas": {
             "type": "float",
-            "default": 30
+            "default": 50
         },
         "rangoPrecioMin": {
             "type": "float"
@@ -108,8 +108,12 @@
         },
         "status": {
             "type": "enum",
-            "options": ["elaboracion", "impresion", "aprobado"],
+            "options": ["elaboracion", "impresion"],
             "default": "elaboracion"
+        },
+        "totalImpactoFactores": {
+            "type": "float",
+            "default": 0
         }
     },
     "links": {
@@ -142,6 +146,11 @@
         "aveAnalisisRespuestas": {
             "type": "hasMany",
             "entity": "AveAnalisisRespuesta",
+            "foreign": "avePrincipal"
+        },
+        "factoresAplicados": {
+            "type": "hasMany",
+            "entity": "AveFactorAplicado",
             "foreign": "avePrincipal"
         }
     },

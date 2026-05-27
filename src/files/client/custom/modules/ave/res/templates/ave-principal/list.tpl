@@ -64,11 +64,10 @@
 
     <!-- Leyenda de estados -->
     <div class="ave-lista-leyenda">
-        <span class="ave-leyenda-titulo"><i class="fas fa-info-circle"></i> <strong>Estados:</strong></span>
-        <span class="ave-leyenda-badge ave-leyenda-elaboracion">En Elaboración</span>
-        <span class="ave-leyenda-badge ave-leyenda-impresion">Listo para Imprimir</span>
-        <span class="ave-leyenda-badge ave-leyenda-aprobado">Aprobado</span>
-    </div>
+    <span class="ave-leyenda-titulo"><i class="fas fa-info-circle"></i> <strong>Estados:</strong></span>
+    <span class="ave-leyenda-badge ave-leyenda-elaboracion">En Elaboración</span>
+    <span class="ave-leyenda-badge ave-leyenda-impresion">Listo para Imprimir</span>
+</div>
 
     <!-- Loading -->
     <div id="ave-list-loading" class="ave-loading" style="display:none;">
@@ -96,7 +95,7 @@
                         <th>Asesor</th>
                         <th>Fecha</th>
                         <th style="width:120px; text-align:center;">Estado</th>
-                        <th style="width:160px; text-align:center;">Acciones</th>
+                        <th style="width:220px; text-align:center;">Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="ave-list-tbody"></tbody>

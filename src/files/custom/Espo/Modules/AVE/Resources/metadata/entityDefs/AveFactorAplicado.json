@@ -1,0 +1,34 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "required": false
+        },
+        "tipo": {
+            "type": "enum",
+            "options": ["positivo", "negativo"],
+            "required": true
+        },
+        "impactoPorcentual": {
+            "type": "float",
+            "default": 1,
+            "required": true
+        }
+    },
+    "links": {
+        "avePrincipal": {
+            "type": "belongsTo",
+            "entity": "AvePrincipal",
+            "foreign": "factoresAplicados"
+        },
+        "factorCatalogo": {
+            "type": "belongsTo",
+            "entity": "AveFactoresDecisionesCanalesPlan",
+            "foreign": "factoresAplicados"
+        }
+    },
+    "collection": {
+        "orderBy": "createdAt",
+        "order": "asc"
+    }
+}

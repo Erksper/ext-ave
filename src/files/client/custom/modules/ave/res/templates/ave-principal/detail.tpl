@@ -36,7 +36,7 @@
         <!-- Navegación de pestañas -->
         <div class="ave-tabs-nav" id="ave-tabs-nav">
             <button class="ave-tab-btn active" data-tab="tab-1"><span class="tab-num">1</span> Datos Generales</button>
-            <button class="ave-tab-btn" data-tab="tab-2"><span class="tab-num">2</span> Datps del Inmueble</button>
+            <button class="ave-tab-btn" data-tab="tab-2"><span class="tab-num">2</span> Datos del Inmueble</button>
             <button class="ave-tab-btn" data-tab="tab-3"><span class="tab-num">3</span> Situación Legal</button>
             <button class="ave-tab-btn" data-tab="tab-4"><span class="tab-num">4</span> Referencias en Promoción</button>
             <button class="ave-tab-btn" data-tab="tab-5"><span class="tab-num">5</span> Referencias Vendidos</button>
@@ -317,6 +317,7 @@
             </div>
 
             <!-- ═══════════════════════════════════════════════════ PESTAÑA 7 — Factores ═══════════════════════════════════════════════════ -->
+            <!-- ═══════════════════════════════════════════════════ PESTAÑA 7 — Factores ═══════════════════════════════════════════════════ -->
             <div class="ave-tab-pane" id="tab-7">
                 <div class="ave-panel">
                     <div class="ave-panel-heading active" data-action="toggle-panel">
@@ -326,8 +327,9 @@
                         </h4>
                     </div>
                     <div class="ave-panel-body">
+                        <!-- Selector de factor -->
                         <div class="row" style="margin-bottom:16px;">
-                            <div class="col-md-8">
+                            <div class="col-md-7">
                                 <label class="ave-form-label">Seleccionar factor existente</label>
                                 <select id="select-factor" class="ave-form-control">
                                     <option value="">-- Seleccione un factor --</option>
@@ -336,17 +338,19 @@
                             <div class="col-md-2" style="padding-top:24px;">
                                 <button class="ave-btn ave-btn-primary" data-action="agregar-factor" style="width:100%;"><i class="fas fa-plus"></i> Agregar</button>
                             </div>
-                            <div class="col-md-2" style="padding-top:24px;">
-                                <button class="ave-btn ave-btn-secondary" data-action="nuevo-factor" style="width:100%;"><i class="fas fa-plus-circle"></i> Nuevo</button>
+                            <div class="col-md-3" style="padding-top:24px;">
+                                <button class="ave-btn ave-btn-secondary" data-action="nuevo-factor" style="width:100%;"><i class="fas fa-plus-circle"></i> Nuevo Factor</button>
                             </div>
                         </div>
+                        
+                        <!-- Tabla de factores aplicados -->
                         <div class="ave-table-wrapper">
                             <table class="ave-table">
                                 <thead>
                                     <tr>
                                         <th>Factor</th>
-                                        <th>Descripción</th>
-                                        <th style="width:120px; text-align:center;">Impacto</th>
+                                        <th style="width:120px; text-align:center;">Tipo de Impacto</th>
+                                        <th style="width:100px; text-align:center;">% Afectación</th>
                                         <th style="width:60px; text-align:center;">Quitar</th>
                                     </tr>
                                 </thead>
@@ -356,6 +360,12 @@
                                     </tr>
                                 </tbody>
                             </table>
+                        </div>
+                        
+                        <!-- Total de impacto -->
+                        <div id="factores-total-container" style="display:none; margin-top: 16px; background: var(--ave-light); border-radius: 8px; padding: 12px; text-align: center; border-left: 4px solid var(--ave-primary);">
+                            <strong>📊 Total afectación en el precio:</strong> <span id="factores-total" style="font-weight: 700; font-size: 16px;">0%</span>
+                            <br><small id="factores-mensaje">Debido a estos factores, el precio de la propiedad puede verse afectado en un 0%</small>
                         </div>
                     </div>
                 </div>
@@ -371,7 +381,7 @@
                         </h4>
                     </div>
                     <div class="ave-panel-body">
-                        <!-- Sección de precios referenciales -->
+                        <!-- Sección de precios referenciales - Nuevo orden -->
                         <div class="ave-precio-grid">
                             <div class="ave-precio-card">
                                 <div class="ave-precio-card-label">Valor Máximo por m²</div>
@@ -382,6 +392,10 @@
                                 <input type="number" id="precioMax" class="ave-form-control" step="0.01" readonly disabled>
                             </div>
                             <div class="ave-precio-card">
+                                <div class="ave-precio-card-label">Valor Promedio por m²</div>
+                                <input type="number" id="valorPromedio" class="ave-form-control" step="0.01" readonly disabled>
+                            </div>
+                            <div class="ave-precio-card">
                                 <div class="ave-precio-card-label">Valor Mínimo por m²</div>
                                 <input type="number" id="valorMin" class="ave-form-control" step="0.01" readonly disabled>
                             </div>
@@ -390,11 +404,7 @@
                                 <input type="number" id="precioMin" class="ave-form-control" step="0.01" readonly disabled>
                             </div>
                             <div class="ave-precio-card">
-                                <div class="ave-precio-card-label">Valor Promedio por m²</div>
-                                <input type="number" id="valorPromedio" class="ave-form-control" step="0.01" readonly disabled>
-                            </div>
-                            <div class="ave-precio-card">
-                                <div class="ave-precio-card-label">Precio Original (USD)</div>
+                                <div class="ave-precio-card-label">Precio de Venta Sugerido (USD)</div>
                                 <input type="number" id="precioOriginal" class="ave-form-control" step="0.01" readonly disabled>
                             </div>
                         </div>
@@ -405,14 +415,14 @@
                                 <div class="ave-form-group">
                                     <label class="ave-form-label">Peso Ofertas (%)</label>
                                     <input type="number" id="pesoOfertas" class="ave-form-control"
-                                        step="1" min="0" max="100" value="70">
+                                        step="1" min="0" max="100" value="50">
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="ave-form-group">
                                     <label class="ave-form-label">Peso Ventas (%)</label>
                                     <input type="number" id="pesoVentas" class="ave-form-control"
-                                        readonly disabled style="background:#f5f5f5;" value="30">
+                                        readonly disabled style="background:#f5f5f5;" value="50">
                                 </div>
                             </div>
                         </div>
@@ -579,7 +589,6 @@
                     </div>
                 </div>
             </div>
-
         </div>
 
         <div class="ave-form-actions">

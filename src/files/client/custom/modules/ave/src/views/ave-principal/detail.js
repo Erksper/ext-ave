@@ -135,7 +135,41 @@ define('ave:views/ave-principal/detail', [
             // Validación de email
             'input #correoCliente': function () {
                 this.validarEmail();
-            }
+            },
+        },
+
+        debugPrecios: function () {
+            console.log('=== DEBUG PRECIOS ===');
+            console.log('AVE ID:', this.aveId);
+            console.log('Referencias promocion:', this.referenciasManager.items.promocion);
+            console.log('Referencias vendidos:', this.referenciasManager.items.vendido);
+            console.log('Inmueble actual:', this.inmuebleManager.inmuebleActual);
+            console.log('Peso Ofertas:', this.$el.find('#pesoOfertas').val());
+            console.log('Peso Ventas:', this.$el.find('#pesoVentas').val());
+            console.log('Ajuste:', this.$el.find('#ajustePrecio').val());
+            
+            // También mostrar datos calculados
+            var self = this;
+            Espo.Ajax.postRequest('AvePrincipal/action/recalcularPrecios', {
+                aveId: this.aveId,
+                pesoOfertas: parseFloat(this.$el.find('#pesoOfertas').val()) || 50,
+                ajustePrecio: parseFloat(this.$el.find('#ajustePrecio').val()) || 0
+            })
+            .then(function (response) {
+                console.log('Respuesta del servidor:', response);
+                if (response.success) {
+                    console.log('Valores calculados por el servidor:');
+                    console.log('  valorMax:', response.data.valorMax);
+                    console.log('  precioMax:', response.data.precioMax);
+                    console.log('  valorPromedio:', response.data.valorPromedio);
+                    console.log('  valorMin:', response.data.valorMin);
+                    console.log('  precioMin:', response.data.precioMin);
+                    console.log('  precioOriginal:', response.data.precioOriginal);
+                    console.log('  precioSugerido:', response.data.precioSugerido);
+                    console.log('  rangoMin:', response.data.rangoPrecioMin);
+                    console.log('  rangoMax:', response.data.rangoPrecioMax);
+                }
+            });
         },
 
         // ─────────────────────────────────────────────────────────────
@@ -188,9 +222,152 @@ define('ave:views/ave-principal/detail', [
             this.previewManager = new PreviewManager(this);
         },
 
+        cargarLogoEquipo: function (teamId) {
+            var self = this;
+            if (!teamId) return;
+            
+            // Buscar un usuario con imagen "por la casa" o la primera imagen disponible
+            Espo.Ajax.getRequest('Team/' + teamId + '/users', {
+                select: 'id,name,cImagenId',
+                maxSize: 50
+            }).then(function (response) {
+                var users = response.list || [];
+                // Buscar usuario que contenga "por la casa" en el nombre
+                var casaUser = users.find(function (u) {
+                    return u.name && u.name.toLowerCase().includes('por la casa');
+                });
+                if (casaUser && casaUser.cImagenId) {
+                    self.teamLogoUrl = window.location.origin + '/api/v1/Attachment/file/' + casaUser.cImagenId;
+                } else {
+                    // Buscar cualquier usuario con imagen
+                    var anyUserWithImage = users.find(function (u) { return u.cImagenId; });
+                    if (anyUserWithImage && anyUserWithImage.cImagenId) {
+                        self.teamLogoUrl = window.location.origin + '/api/v1/Attachment/file/' + anyUserWithImage.cImagenId;
+                    }
+                }
+                if (self.isRendered() && self.previewManager) {
+                    self.previewManager.generar();
+                }
+            }).catch(function () {
+                // No se pudo cargar el logo
+            });
+        },
+
+        // afterRender: function () {
+        //     Dep.prototype.afterRender.call(this);
+        //     this.cargarDatos();
+        // },
+
         afterRender: function () {
             Dep.prototype.afterRender.call(this);
             this.cargarDatos();
+            
+            // Exponer el manager en la consola para debugging (sin setupKeyboardDebug)
+            var self = this;
+            window.aveDebug = {
+                getPrecios: function() {
+                    console.log('=== AVE DEBUG PRECIOS ===');
+                    console.log('AVE ID:', self.aveId);
+                    console.log('Referencias promocion:', self.referenciasManager?.items?.promocion || []);
+                    console.log('Referencias vendidos:', self.referenciasManager?.items?.vendido || []);
+                    console.log('Inmueble:', self.inmuebleManager?.inmuebleActual);
+                    console.log('Área inmueble:', self.inmuebleManager?.inmuebleActual?.areaConstruida);
+                    console.log('Peso Ofertas:', self.$el.find('#pesoOfertas').val());
+                    console.log('Peso Ventas:', self.$el.find('#pesoVentas').val());
+                    console.log('Ajuste:', self.$el.find('#ajustePrecio').val());
+                    
+                    // Calcular manualmente los precios M2 de referencias
+                    var refsPromocion = self.referenciasManager?.items?.promocion || [];
+                    var refsVendidos = self.referenciasManager?.items?.vendido || [];
+                    
+                    console.log('\n--- Detalle Referencias en Promoción ---');
+                    var sumaPreciosProm = 0, sumaAreasProm = 0;
+                    refsPromocion.forEach(function(ref, idx) {
+                        var precio = parseFloat(ref.valorReferencial) || 0;
+                        var area = parseFloat(ref.areaConstruida) || 0;
+                        var precioM2 = area > 0 ? (precio / area).toFixed(2) : 0;
+                        console.log('  Ref ' + (idx+1) + ': Precio=' + precio + ', Área=' + area + ', PrecioM2=' + precioM2);
+                        sumaPreciosProm += precio;
+                        sumaAreasProm += area;
+                    });
+                    var precioM2PromedioProm = sumaAreasProm > 0 ? (sumaPreciosProm / sumaAreasProm).toFixed(2) : 0;
+                    console.log('  SUMAS: Precios=' + sumaPreciosProm + ', Áreas=' + sumaAreasProm + ', PrecioM2 Promedio=' + precioM2PromedioProm);
+                    
+                    console.log('\n--- Detalle Referencias Vendidas ---');
+                    var sumaPreciosVen = 0, sumaAreasVen = 0;
+                    refsVendidos.forEach(function(ref, idx) {
+                        var precio = parseFloat(ref.valorReferencial) || 0;
+                        var area = parseFloat(ref.areaConstruida) || 0;
+                        var precioM2 = area > 0 ? (precio / area).toFixed(2) : 0;
+                        console.log('  Ref ' + (idx+1) + ': Precio=' + precio + ', Área=' + area + ', PrecioM2=' + precioM2);
+                        sumaPreciosVen += precio;
+                        sumaAreasVen += area;
+                    });
+                    var precioM2PromedioVen = sumaAreasVen > 0 ? (sumaPreciosVen / sumaAreasVen).toFixed(2) : 0;
+                    console.log('  SUMAS: Precios=' + sumaPreciosVen + ', Áreas=' + sumaAreasVen + ', PrecioM2 Promedio=' + precioM2PromedioVen);
+                    
+                    console.log('\n--- Cálculo Final ---');
+                    var pesoOfertas = parseFloat(self.$el.find('#pesoOfertas').val()) || 50;
+                    var pesoVentas = 100 - pesoOfertas;
+                    var precioM2Ponderado = (precioM2PromedioProm * pesoOfertas / 100) + (precioM2PromedioVen * pesoVentas / 100);
+                    var areaInmueble = self.inmuebleManager?.inmuebleActual?.areaConstruida || 0;
+                    var precioVenta = precioM2Ponderado * areaInmueble;
+                    console.log('  Precio M2 Ofertas: ' + precioM2PromedioProm);
+                    console.log('  Precio M2 Ventas: ' + precioM2PromedioVen);
+                    console.log('  Pesos: Ofertas=' + pesoOfertas + '%, Ventas=' + pesoVentas + '%');
+                    console.log('  Precio M2 Ponderado: ' + precioM2Ponderado);
+                    console.log('  Área Inmueble: ' + areaInmueble);
+                    console.log('  Precio Venta Calculado: ' + precioVenta.toFixed(2));
+                    
+                    return {
+                        aveId: self.aveId,
+                        referenciasPromocion: refsPromocion,
+                        referenciasVendidos: refsVendidos,
+                        inmueble: self.inmuebleManager?.inmuebleActual,
+                        calculos: {
+                            sumaPreciosProm: sumaPreciosProm,
+                            sumaAreasProm: sumaAreasProm,
+                            precioM2PromedioProm: precioM2PromedioProm,
+                            sumaPreciosVen: sumaPreciosVen,
+                            sumaAreasVen: sumaAreasVen,
+                            precioM2PromedioVen: precioM2PromedioVen,
+                            pesoOfertas: pesoOfertas,
+                            pesoVentas: pesoVentas,
+                            precioM2Ponderado: precioM2Ponderado,
+                            areaInmueble: areaInmueble,
+                            precioVentaCalculado: precioVenta
+                        }
+                    };
+                },
+                recalcular: function() {
+                    console.log('Recalculando precios en el servidor...');
+                    return Espo.Ajax.postRequest('AvePrincipal/action/recalcularPrecios', {
+                        aveId: self.aveId,
+                        pesoOfertas: parseFloat(self.$el.find('#pesoOfertas').val()) || 50,
+                        ajustePrecio: parseFloat(self.$el.find('#ajustePrecio').val()) || 0
+                    }).then(function(r) {
+                        console.log('Respuesta del servidor:', r);
+                        if (r.success) {
+                            console.log('Valores devueltos:');
+                            console.log('  valorMax:', r.data.valorMax);
+                            console.log('  valorMin:', r.data.valorMin);
+                            console.log('  valorPromedio:', r.data.valorPromedio);
+                            console.log('  precioMax:', r.data.precioMax);
+                            console.log('  precioMin:', r.data.precioMin);
+                            console.log('  precioOriginal (Precio Venta):', r.data.precioOriginal);
+                            console.log('  precioSugerido:', r.data.precioSugerido);
+                        }
+                        return r;
+                    });
+                },
+                forzarRecalculoLocal: function() {
+                    console.log('Forzando recálculo local...');
+                    if (self.precioManager) {
+                        self.precioManager.calcular();
+                    }
+                }
+            };
+            console.log('✅ Debug disponible: escribe aveDebug.getPrecios() en la consola');
         },
 
         // ─────────────────────────────────────────────────────────────
@@ -261,13 +438,22 @@ define('ave:views/ave-principal/detail', [
             this.fodaManager.cargar(data.analisis || []);
             
             // Pestañas 7, 9, 10, 11 — Items
-            this.factoresManager.cargarItems(data.factores || []);
+            this.factoresManager.cargarItems(data.factoresAplicados || []);
             this.decisionesManager.cargarItems(data.decisiones || []);
             this.canalesManager.cargarItems(data.canales || []);
             this.planesManager.cargarItems(data.planes || []);
             
             // Pestaña 8 — Precios
             this.precioManager.poblar(ave);
+            if (ave.teamId) {
+                this.cargarLogoEquipo(ave.teamId);
+            }
+            
+            // Guardar datos del asesor para la vista previa
+            this.assignedUserName = ave.assignedUserName;
+            this.assignedUserImageId = ave.assignedUserImageId;
+            this.teamName = ave.teamName;
+            this.teamLogoUrl = null;
         },
 
         // ─────────────────────────────────────────────────────────────
@@ -390,7 +576,7 @@ define('ave:views/ave-principal/detail', [
                 },
                 referencias: this.referenciasManager.getData(),
                 analisis: this.fodaManager.getData(),
-                factores: this.factoresManager.getData(),
+                factoresAplicados: this.factoresManager.getData(),
                 decisiones: this.decisionesManager.getData(),
                 canales: this.canalesManager.getData(),
                 planes: this.planesManager.getData(),

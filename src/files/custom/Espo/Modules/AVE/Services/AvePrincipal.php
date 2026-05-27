@@ -14,6 +14,28 @@ class AvePrincipal extends RecordService
     // ──────────────────────────────────────────────────────────────
     // Sobrescribir create para asignar número AVE secuencial
     // ──────────────────────────────────────────────────────────────
+
+    public function debugReferencias(string $avePrincipalId): void
+    {
+        $em = $this->entityManager;
+        $referencias = $em->getRDBRepository('AveInmuebleReferencia')
+            ->where(['avePrincipalId' => $avePrincipalId])
+            ->find();
+        
+        $GLOBALS['log']->info('=== DEBUG REFERENCIAS para AVE: ' . $avePrincipalId . ' ===');
+        $GLOBALS['log']->info('Total referencias encontradas: ' . count($referencias));
+        
+        foreach ($referencias as $ref) {
+            $GLOBALS['log']->info('Referencia - ID: ' . $ref->getId() . 
+                ', Tipo: ' . $ref->get('tipo') . 
+                ', UsarCalculo: ' . ($ref->get('usarCalculo') ? 'true' : 'false') .
+                ', Precio: ' . $ref->get('valorReferencial') .
+                ', Área: ' . $ref->get('areaConstruida') .
+                ', PrecioM2: ' . ($ref->get('valorReferencial') && $ref->get('areaConstruida') && $ref->get('areaConstruida') > 0 ? 
+                    $ref->get('valorReferencial') / $ref->get('areaConstruida') : 'N/A'));
+        }
+    }
+
     public function create(\stdClass $data, CreateParams $params): Entity
     {
         if (empty($data->numeroAve)) {
@@ -49,15 +71,21 @@ class AvePrincipal extends RecordService
         string $identificacion, string $asesor,
         string $status = ''
     ): array {
-        $GLOBALS['log']->info('=== getLista SIMPLIFICADO ===');
+        $GLOBALS['log']->info('=== getLista ===');
+        $GLOBALS['log']->info('Filtro status: ' . ($status ?: 'NINGUNO'));
         
         $repo = $this->entityManager->getRDBRepository('AvePrincipal');
         
-        // VERSIÓN SIMPLIFICADA - SIN FILTROS, SIN PAGINACIÓN
-        // Solo obtener los primeros 100 registros
-        $items = $repo->limit(0, 100)->find();
+        $query = $repo->where([]);
         
-        $GLOBALS['log']->info('Registros encontrados (sin filtros): ' . $items->count());
+        if ($status) {
+            $query->where(['status' => $status]);
+            $GLOBALS['log']->info('Filtrando por status: ' . $status);
+        }
+        
+        $items = $query->limit(0, 100)->find();
+        
+        $GLOBALS['log']->info('Registros encontrados: ' . $items->count());
         
         $list = [];
         foreach ($items as $item) {
@@ -65,8 +93,14 @@ class AvePrincipal extends RecordService
                 'id'                    => $item->getId(),
                 'numeroAve'             => $item->get('numeroAve'),
                 'nombreCliente'         => $item->get('nombreCliente'),
+                'identificacionCliente' => $item->get('identificacionCliente'),
+                'tipoIdentificacion'    => $item->get('tipoIdentificacion'),
+                'assignedUserName'      => $item->get('assignedUserName'),
+                'aveInmuebleName'       => $item->get('aveInmuebleName'),
                 'createdAt'             => $item->get('createdAt'),
+                'status'                => $item->get('status'),
             ];
+            $GLOBALS['log']->info('Registro: ' . $item->get('numeroAve') . ' - Status: ' . $item->get('status'));
         }
         
         return [
@@ -81,7 +115,7 @@ class AvePrincipal extends RecordService
 
     public function cambiarStatus(string $aveId, string $status): array
     {
-        $allowed = ['elaboracion', 'impresion', 'aprobado'];
+        $allowed = ['elaboracion', 'impresion'];
         if (!in_array($status, $allowed)) {
             throw new BadRequest("Estado inválido: $status");
         }
@@ -102,20 +136,18 @@ class AvePrincipal extends RecordService
         $entity = $em->getEntity('AvePrincipal', $aveId);
         if (!$entity) throw new NotFound("AvePrincipal '$aveId' no encontrado.");
 
-        // Recolectar todos los datos (misma lógica que getOrCreate)
         $data = $this->getOrCreate($aveId);
         $ave      = $data['data']['ave'];
         $inmueble = $data['data']['inmueble'] ?? [];
         $referencias   = $data['data']['referencias']  ?? [];
         $analisis      = $data['data']['analisis']      ?? [];
-        $factores      = $data['data']['factores']      ?? [];
+        $factoresAplicados = $data['data']['factoresAplicados'] ?? [];
         $decisiones    = $data['data']['decisiones']    ?? [];
         $canales       = $data['data']['canales']       ?? [];
         $planes        = $data['data']['planes']        ?? [];
 
-        $html = $this->buildPdfHtml($ave, $inmueble, $referencias, $analisis, $factores, $decisiones, $canales, $planes);
+        $html = $this->buildPdfHtml($ave, $inmueble, $referencias, $analisis, $factoresAplicados, $decisiones, $canales, $planes);
 
-        // Usar dompdf si está disponible, si no hacer output HTML imprimible
         $rootDir = dirname(__DIR__, 5);
         $dompdfPath = $rootDir . '/vendor/dompdf/dompdf/src/Dompdf.php';
 
@@ -128,7 +160,6 @@ class AvePrincipal extends RecordService
             $filename = 'AVE-' . ($ave['numeroAve'] ?? $aveId) . '.pdf';
             $dompdf->stream($filename, ['Attachment' => true]);
         } else {
-            // Fallback: HTML con estilos de impresión
             header('Content-Type: text/html; charset=UTF-8');
             header('Content-Disposition: inline; filename="AVE.html"');
             echo $html;
@@ -136,7 +167,7 @@ class AvePrincipal extends RecordService
         exit;
     }
 
-    private function buildPdfHtml(array $ave, array $inmueble, array $referencias, array $analisis, array $factores, array $decisiones, array $canales, array $planes): string
+    private function buildPdfHtml(array $ave, array $inmueble, array $referencias, array $analisis, array $factoresAplicados, array $decisiones, array $canales, array $planes): string
     {
         $nombreCliente = htmlspecialchars($ave['nombreCliente'] ?? 'Cliente');
         $numeroAve     = htmlspecialchars($ave['numeroAve']     ?? 'N/A');
@@ -150,6 +181,13 @@ class AvePrincipal extends RecordService
         $fmtUSD = fn($v) => $v ? '$ ' . number_format((float)$v, 2, '.', ',') : '-';
         $esc    = fn($t) => htmlspecialchars((string)($t ?? ''), ENT_QUOTES);
 
+        // Calcular total de impacto de factores
+        $totalImpacto = 0;
+        foreach ($factoresAplicados as $factor) {
+            $impacto = ($factor['tipo'] ?? '') === 'positivo' ? 1 : -1;
+            $totalImpacto += $impacto;
+        }
+
         $html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">';
         $html .= '<style>
             body { font-family: Arial, sans-serif; font-size: 13px; color: #363438; margin: 0; padding: 20px; }
@@ -160,9 +198,7 @@ class AvePrincipal extends RecordService
             table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 12px; }
             th { background: #B8A279; color: white; padding: 8px; text-align: left; }
             td { padding: 7px 8px; border-bottom: 1px solid #eee; }
-            tr:nth-child(even) td { background: #fafafa; }
             .intro { background: #f8f9fa; border-left: 4px solid #B8A279; padding: 14px 18px; margin-bottom: 20px; line-height: 1.6; text-align: justify; }
-            .ref-num { color: #B8A279; font-weight: 700; }
             .precio-box { background: #B8A279; color: white; padding: 16px; border-radius: 6px; text-align: center; margin: 12px 0; }
             .precio-box strong { font-size: 20px; display: block; margin-bottom: 4px; }
             .foda-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
@@ -177,6 +213,13 @@ class AvePrincipal extends RecordService
             .badge-negativo { color: #e74c3c; font-weight: 700; }
             .canal-chip { display: inline-block; background: #e0e0e0; padding: 3px 8px; border-radius: 12px; margin: 2px; font-size: 11px; }
             .footer { margin-top: 30px; border-top: 2px solid #B8A279; padding-top: 16px; text-align: center; color: #999; font-size: 11px; }
+            .impacto-box { background: #f0f0f0; border-left: 4px solid #B8A279; padding: 12px; margin-top: 16px; text-align: center; font-weight: bold; }
+            .impacto-positivo { color: #27ae60; }
+            .impacto-negativo { color: #e74c3c; }
+            .ref-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 11px; overflow-x: auto; }
+            .ref-table th, .ref-table td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+            .ref-table th { background: #B8A279; color: white; }
+            .foto-thumb { max-width: 50px; max-height: 50px; border-radius: 4px; }
             @media print { body { padding: 0; } }
         </style></head><body>';
 
@@ -188,10 +231,10 @@ class AvePrincipal extends RecordService
         $html .= '<div class="intro">Estimado(a) ' . $nombreCliente . ', reciba de todo el equipo que labora en nuestras oficinas un cordial saludo de respeto hacia usted por brindarnos su confianza. Le presentamos el siguiente Análisis de Venta Exitoso correspondiente a su propiedad; con el propósito de mostrarle referencias actuales del mercado inmobiliario que le ayuden a tomar la mejor decisión sobre el valor promocional de su inmueble y realizar un excelente negocio inmobiliario.</div>';
         $html .= '<p style="text-align:center;"><strong>Ref: ' . $numeroAve . '</strong></p>';
 
-        // Foto del inmueble (si existe)
+        // Foto del inmueble
         if (!empty($inmueble['fotoId'])) {
             $html .= '<div style="text-align:center; margin:16px 0;">';
-            $html .= '<img src="' . $esc($inmueble['fotoId']) . '" style="max-width:320px; max-height:220px; border-radius:8px; border:1px solid #ddd;">';
+            $html .= '<img src="api/v1/Attachment/file/' . $esc($inmueble['fotoId']) . '" style="max-width:320px; max-height:220px; border-radius:8px; border:1px solid #ddd;">';
             $html .= '</div>';
         }
 
@@ -203,11 +246,13 @@ class AvePrincipal extends RecordService
             $inmueble['estado']       ?? ''
         ]));
         $html .= '<h3>Ubicación</h3>';
-        $html .= '<p>' . $esc($ubicacion) . '</p>';
+        $html .= '<p>' . $esc($ubicacion ?: 'No especificada') . '</p>';
 
-        // Ficha del inmueble
+        // Ficha del inmueble - CORREGIDA: tabla bien estructurada
         $html .= '<h3>Ficha del Inmueble</h3>';
-        $html .= '<table><tr><th style="width:40%;">Campo</th><th>Valor</th></tr>';
+        $html .= '<table class="ficha-table">';
+        $html .= '<tr><th style="width:40%;">Campo</th><th>Valor</th></tr>';
+        
         $ficha = [
             'Tipo de inmueble'    => ucfirst($inmueble['tipoPropiedad'] ?? '-') . ' - ' . ucfirst($inmueble['subtipoPropiedad'] ?? '-'),
             'Propietario'         => $inmueble['nombrePropietario'] ?? '-',
@@ -215,52 +260,78 @@ class AvePrincipal extends RecordService
             'Antigüedad (años)'   => $inmueble['antiguedad'] ?? '-',
             'Habitaciones / Baños'=> ($inmueble['numHabitaciones'] ?? '-') . ' / ' . ($inmueble['numBanos'] ?? '-'),
             'Estacionamiento'     => $inmueble['puestoEstacionamiento'] ?? '-',
-            'Descripción'         => $inmueble['descripcion'] ?? '',
         ];
         foreach ($ficha as $label => $val) {
-            if ($val) $html .= '<tr><td><strong>' . $esc($label) . '</strong></td><td>' . $esc($val) . '</td></tr>';
+            if ($val) {
+                $html .= '<tr>';
+                $html .= '<td><strong>' . $esc($label) . '</strong></td>';
+                $html .= '<td>' . $esc($val) . '</td>';
+                $html .= '</tr>';
+            }
+        }
+        if (!empty($inmueble['descripcion'])) {
+            $html .= '<tr><td><strong>Descripción</strong></td><td>' . $esc($inmueble['descripcion']) . '</td></tr>';
         }
         $html .= '</table>';
 
-        // Helper para tabla de referencias
+        // Helper para tabla de referencias - CORREGIDO
         $buildRefTable = function(array $refs, string $titulo) use ($esc, $fmtUSD): string {
             if (empty($refs)) return '';
             $refs = array_values($refs);
             $h  = '<h3>' . $titulo . '</h3>';
-            $h .= '<div style="overflow-x:auto;"><table>';
-            $h .= '<tr><th>Característica</th>';
-            foreach ($refs as $i => $r) $h .= '<th>REF ' . ($i + 1) . '</th>';
-            $h .= '</tr>';
+            $h .= '<div style="overflow-x:auto;">';
+            $h .= '<table class="ref-table">';
+            
+            // Cabecera con números de referencia
+            $h .= '<thead><tr>';
+            $h .= '<th>Característica</th>';
+            foreach ($refs as $i => $r) {
+                $h .= '<th>REF ' . ($i + 1) . '</th>';
+            }
+            $h .= '</tr></thead><tbody>';
+            
+            // Filas de datos
             $rows = [
-                'Tipo'              => fn($r) => $esc(($r['tipoPropiedad'] ?? '') . ' - ' . ($r['subtipoPropiedad'] ?? '')),
-                'M² C / M² T'      => fn($r) => $esc(($r['areaConstruida'] ?? '0') . ' / ' . ($r['areaTerreno'] ?? '0')),
-                'Antigüedad'        => fn($r) => $esc($r['antiguedad'] ?? '-'),
-                'Hab / Baños'       => fn($r) => $esc(($r['habitaciones'] ?? '-') . ' / ' . ($r['banos'] ?? '-')),
-                'Estacionamiento'   => fn($r) => $esc($r['estacionamiento'] ?? '-'),
-                'Terraza'           => fn($r) => $esc($r['terraza'] ? 'Sí' : 'No'),
-                'Valor (USD)'       => fn($r) => $fmtUSD($r['valorReferencial'] ?? null),
-                'USD x M²'          => fn($r) => $fmtUSD($r['valorm2'] ?? null),
-                'Acabados'          => fn($r) => $esc($r['acabados'] ?? '-'),
-                'Enlace'            => fn($r) => $r['enlace'] ? '<a href="' . $esc($r['enlace']) . '">' . $esc($r['enlace']) . '</a>' : '-',
+                'Tipo' => fn($r) => $esc(($r['tipoPropiedad'] ?? '') . ' - ' . ($r['subtipoPropiedad'] ?? '')),
+                'M² C / M² T' => fn($r) => $esc(($r['areaConstruida'] ?? '0') . ' / ' . ($r['areaTerreno'] ?? '0')),
+                'Antigüedad' => fn($r) => $esc($r['antiguedad'] ?? '-'),
+                'Hab / Baños' => fn($r) => $esc(($r['habitaciones'] ?? '-') . ' / ' . ($r['banos'] ?? '-')),
+                'Estacionamiento' => fn($r) => $esc($r['estacionamiento'] ?? '-'),
+                'Terraza' => fn($r) => $esc($r['terraza'] ? 'Sí' : 'No'),
+                'Valor (USD)' => fn($r) => $fmtUSD($r['valorReferencial'] ?? null),
+                'USD x M²' => fn($r) => $fmtUSD($r['valorm2'] ?? null),
+                'Acabados' => fn($r) => $esc($r['acabados'] ?? '-'),
             ];
+            
             foreach ($rows as $label => $fn) {
-                $h .= '<tr><td><strong>' . $label . '</strong></td>';
-                foreach ($refs as $r) $h .= '<td>' . $fn($r) . '</td>';
+                $h .= '<tr>';
+                $h .= '<td><strong>' . $label . '</strong></td>';
+                foreach ($refs as $r) {
+                    $h .= '<td>' . $fn($r) . '</td>';
+                }
                 $h .= '</tr>';
             }
-            // Fotos
-            $h .= '<tr><td><strong>Foto</strong></td>';
+            
+            // Fila de enlaces
+            $h .= '<tr>';
+            $h .= '<td><strong>Enlace</strong></td>';
             foreach ($refs as $r) {
-                $h .= '<td>';
-                if (!empty($r['fotoId'])) {
-                    $h .= '<img src="data:image/jpeg;base64,foto" style="max-width:60px; max-height:60px;">';
-                } else {
-                    $h .= '-';
-                }
-                $h .= '</td>';
+                $enlace = $r['enlace'] ?? '';
+                $h .= '<td>' . ($enlace ? '<a href="' . $esc($enlace) . '" target="_blank">Ver</a>' : '-') . '</td>';
             }
             $h .= '</tr>';
-            $h .= '</table></div>';
+            
+            // Fila de fotos
+            $h .= '<tr>';
+            $h .= '<td><strong>Foto</strong></td>';
+            foreach ($refs as $r) {
+                $fotoId = $r['fotoId'] ?? '';
+                $h .= '<td>' . ($fotoId ? '<img src="api/v1/Attachment/file/' . $esc($fotoId) . '" class="foto-thumb">' : '-') . '</td>';
+            }
+            $h .= '</tr>';
+            
+            $h .= '</tbody></table>';
+            $h .= '</div>';
             return $h;
         };
 
@@ -270,87 +341,182 @@ class AvePrincipal extends RecordService
         // FODA
         if (!empty($fortalezas) || !empty($debilidades)) {
             $html .= '<h3>3. ANÁLISIS DE FORTALEZAS Y DEBILIDADES</h3>';
-            $html .= '<table><tr>';
-            $html .= '<td style="width:50%; vertical-align:top; background:#d4edda; padding:12px; border-radius:6px;">';
-            $html .= '<strong style="color:#155724;">Fortalezas</strong><br><br>';
-            foreach ($fortalezas as $f) {
-                $html .= '<div class="foda-item"><strong>' . $esc($f['tituloName'] ?? '') . '</strong>';
-                $html .= '<span>' . $esc($f['descripcion'] ?? '') . '</span></div>';
+            $html .= '<div class="foda-grid">';
+            
+            // Fortalezas
+            $html .= '<div class="fortaleza-col">';
+            $html .= '<h4 style="color:#155724; margin-top:0;"><i>✓</i> Fortalezas</h4>';
+            if (empty($fortalezas)) {
+                $html .= '<p>No hay fortalezas registradas</p>';
+            } else {
+                foreach ($fortalezas as $f) {
+                    $html .= '<div class="foda-item">';
+                    $html .= '<strong>' . $esc($f['tituloName'] ?? '') . '</strong>';
+                    if (!empty($f['descripcion'])) {
+                        $html .= '<br><span>' . $esc($f['descripcion']) . '</span>';
+                    }
+                    $html .= '</div>';
+                }
             }
-            $html .= '</td><td style="width:50%; vertical-align:top; background:#f8d7da; padding:12px; border-radius:6px; padding-left:20px;">';
-            $html .= '<strong style="color:#721c24;">Debilidades</strong><br><br>';
-            foreach ($debilidades as $d) {
-                $html .= '<div class="foda-item"><strong>' . $esc($d['tituloName'] ?? '') . '</strong>';
-                $html .= '<span>' . $esc($d['descripcion'] ?? '') . '</span></div>';
+            $html .= '</div>';
+            
+            // Debilidades
+            $html .= '<div class="debilidad-col">';
+            $html .= '<h4 style="color:#721c24; margin-top:0;"><i>✗</i> Debilidades</h4>';
+            if (empty($debilidades)) {
+                $html .= '<p>No hay debilidades registradas</p>';
+            } else {
+                foreach ($debilidades as $d) {
+                    $html .= '<div class="foda-item">';
+                    $html .= '<strong>' . $esc($d['tituloName'] ?? '') . '</strong>';
+                    if (!empty($d['descripcion'])) {
+                        $html .= '<br><span>' . $esc($d['descripcion']) . '</span>';
+                    }
+                    $html .= '</div>';
+                }
             }
-            $html .= '</td></tr></table>';
+            $html .= '</div>';
+            
+            $html .= '</div>';
         }
 
-        // Situación Legal
-        $html .= '<h3>Situación Legal</h3>';
-        $html .= '<table>';
+        // FACTORES QUE INFLUYEN EN EL PRECIO
+        if (!empty($factoresAplicados)) {
+            $html .= '<h3>4. FACTORES QUE INFLUYEN EN EL PRECIO</h3>';
+            $html .= '<div style="overflow-x:auto;">';
+            $html .= '<table class="ref-table">';
+            $html .= '<thead><tr>';
+            $html .= '<th>Factor</th>';
+            $html .= '<th style="width:120px; text-align:center;">Impacto</th>';
+            $html .= '<th style="width:100px; text-align:center;">% Afectación</th>';
+            $html .= '</tr></thead><tbody>';
+            
+            foreach ($factoresAplicados as $factor) {
+                $nombreFactor = $esc($factor['factorName'] ?? $factor['name'] ?? '');
+                $tipoImpacto = $factor['tipo'] ?? '';
+                $esPositivo = $tipoImpacto === 'positivo';
+                $icono = $esPositivo ? '✓' : '✗';
+                $textoImpacto = $esPositivo ? 'Positivo' : 'Negativo';
+                $porcentaje = $esPositivo ? '+1%' : '-1%';
+                $clase = $esPositivo ? 'impacto-positivo' : 'impacto-negativo';
+                
+                $html .= '<tr>';
+                $html .= '<td>' . $nombreFactor . '</td>';
+                $html .= '<td style="text-align:center;" class="' . $clase . '">' . $icono . ' ' . $textoImpacto . '</td>';
+                $html .= '<td style="text-align:center; font-weight:bold;" class="' . $clase . '">' . $porcentaje . '</td>';
+                $html .= '</tr>';
+            }
+            
+            $html .= '</tbody></table>';
+            $html .= '</div>';
+            
+            // Total de impacto
+            $signoTotal = $totalImpacto >= 0 ? '+' : '';
+            $claseTotal = $totalImpacto >= 0 ? 'impacto-positivo' : 'impacto-negativo';
+            $html .= '<div class="impacto-box">';
+            $html .= '<strong>📊 Total de afectación:</strong> <span class="' . $claseTotal . '">' . $signoTotal . $totalImpacto . '%</span><br>';
+            $html .= '<small>Debido a estos factores, el precio de la propiedad puede verse afectado en un <strong>' . $signoTotal . abs($totalImpacto) . '%</strong></small>';
+            $html .= '</div>';
+        }
+
+        // Situación Legal - CORREGIDO
+        $html .= '<h3>5. Situación Legal</h3>';
+        $html .= '<table class="legal-table">';
         $camposLegal = [
-            'Cédula Catastral'    => ['bool' => 'cedulaCatastral',   'nota' => 'cedCatNota'],
-            'Registro de Propiedad'=> ['bool' => 'registroPropiedad', 'nota' => 'regProNota'],
-            'Solvencia Municipal'  => ['bool' => 'solvenciaMunicipal','nota' => 'solMunNota'],
-            'Comentario Adicional' => ['bool' => 'comentarioLegal',   'nota' => 'comLegNota'],
+            'Cédula Catastral' => ['bool' => 'cedulaCatastral', 'nota' => 'cedCatNota'],
+            'Registro de Propiedad' => ['bool' => 'registroPropiedad', 'nota' => 'regProNota'],
+            'Solvencia Municipal' => ['bool' => 'solvenciaMunicipal', 'nota' => 'solMunNota'],
+            'Comentario Adicional' => ['bool' => 'comentarioLegal', 'nota' => 'comLegNota'],
         ];
         foreach ($camposLegal as $label => $campo) {
-            $val  = !empty($ave[$campo['bool']]);
+            $val = !empty($ave[$campo['bool']]);
             $nota = $esc($ave[$campo['nota']] ?? '');
-            $html .= '<tr><td><strong>' . $label . '</strong></td>';
-            $html .= '<td class="' . ($val ? 'legal-si' : 'legal-no') . '">' . ($val ? 'Sí' : 'No') . '</td>';
-            $html .= '<td>' . $nota . '</td></tr>';
+            $html .= '<tr>';
+            $html .= '<td style="width:30%;"><strong>' . $label . '</strong></td>';
+            $html .= '<td style="width:15%;" class="' . ($val ? 'legal-si' : 'legal-no') . '">' . ($val ? 'Sí' : 'No') . '</td>';
+            $html .= '<td>' . $nota . '</td>';
+            $html .= '</tr>';
         }
         $html .= '</table>';
 
-        // Factores
-        if (!empty($factores)) {
-            $html .= '<h3>¿Qué influye en el precio actualmente?</h3><ul>';
-            foreach ($factores as $f) {
-                $icono = ($f['impacto'] ?? '') === 'positivo' ? '✅' : '❌';
-                $html .= '<li>' . $icono . ' ' . $esc($f['name'] ?? '') . '</li>';
-            }
-            $html .= '</ul>';
-        }
+        // Frase dorada
+        $html .= '<div style="background: linear-gradient(135deg, #F5E6CA 0%, #E8D5B0 100%); border-left: 6px solid #B8A279; border-radius: 8px; padding: 16px 24px; margin: 24px 0; text-align: center;">';
+        $html .= '<p style="color: #8B6914; font-size: 16px; font-weight: 600; margin: 0;">';
+        $html .= '"De acuerdo a la información suministrada, ¿qué precio de salida al mercado le pondría usted a su propiedad?"';
+        $html .= '</p>';
+        $html .= '</div>';
 
-        // Análisis de precios
-        $html .= '<h3>Análisis Integral</h3>';
-        $html .= '<table>';
-        $html .= '<tr><th>Síntesis</th><th>USD x m²</th><th>Precio (USD)</th></tr>';
-        $html .= '<tr><td>Precio Promedio Máximo</td><td>' . $fmtUSD($ave['valorMax'] ?? null) . '</td><td>' . $fmtUSD($ave['precioMax'] ?? null) . '</td></tr>';
-        $html .= '<tr><td>Precio Promedio Mínimo</td><td>' . $fmtUSD($ave['valorMin'] ?? null) . '</td><td>' . $fmtUSD($ave['precioMin'] ?? null) . '</td></tr>';
-        $html .= '<tr><td>Promedio de salida al mercado</td><td>' . $fmtUSD($ave['valorPromedio'] ?? null) . '</td><td>' . $fmtUSD($ave['precioOriginal'] ?? null) . '</td></tr>';
+        // Análisis de precios - CORREGIDO
+        $html .= '<h3>6. Análisis Integral</h3>';
+        $html .= '<table class="precios-table">';
+        $html .= '<tr style="background:#f5f5f5;">';
+        $html .= '<td style="padding:8px;"><strong>Síntesis de precio unitario Mts2</strong></td>';
+        $html .= '<td style="padding:8px;"><strong>USD x m²</strong></td>';
+        $html .= '<td style="padding:8px;"><strong>Precio (USD)</strong></td>';
+        $html .= '</tr>';
+        $html .= '<tr>';
+        $html .= '<td style="padding:8px; border-bottom:1px solid #eee;">Precio Promedio Máximo</td>';
+        $html .= '<td style="padding:8px; border-bottom:1px solid #eee;">' . $fmtUSD($ave['valorMax'] ?? null) . '</td>';
+        $html .= '<td style="padding:8px; border-bottom:1px solid #eee;">' . $fmtUSD($ave['precioMax'] ?? null) . '</td>';
+        $html .= '</tr>';
+        $html .= '<tr>';
+        $html .= '<td style="padding:8px; border-bottom:1px solid #eee;">Precio Promedio Mínimo</td>';
+        $html .= '<td style="padding:8px; border-bottom:1px solid #eee;">' . $fmtUSD($ave['valorMin'] ?? null) . '</td>';
+        $html .= '<td style="padding:8px; border-bottom:1px solid #eee;">' . $fmtUSD($ave['precioMin'] ?? null) . '</td>';
+        $html .= '</tr>';
+        $html .= '<tr>';
+        $html .= '<td style="padding:8px;">Promedio de salida al mercado</td>';
+        $html .= '<td style="padding:8px;">' . $fmtUSD($ave['valorPromedio'] ?? null) . '</td>';
+        $html .= '<td style="padding:8px;">' . $fmtUSD($ave['precioOriginal'] ?? null) . '</td>';
+        $html .= '</tr>';
         $html .= '</table>';
-        $html .= '<div class="precio-box"><strong>Rango de Precio: ' . $fmtUSD($ave['precioMin'] ?? null) . ' — ' . $fmtUSD($ave['precioMax'] ?? null) . '</strong>';
-        $html .= 'Ponderación: ' . ($ave['pesoOfertas'] ?? 70) . '% Ofertas / ' . ($ave['pesoVentas'] ?? 30) . '% Ventas</div>';
+        
+        // Precio ajustado
+        $precioConAjuste = ($ave['precioOriginal'] ?? 0) * (1 + $totalImpacto / 100);
+        $html .= '<div class="precio-box">';
+        $html .= '<strong>Rango de Precio: ' . $fmtUSD($ave['precioMin'] ?? null) . ' — ' . $fmtUSD($ave['precioMax'] ?? null) . '</strong>';
+        $html .= '<br>Ponderación: ' . ($ave['pesoOfertas'] ?? 70) . '% Ofertas / ' . ($ave['pesoVentas'] ?? 30) . '% Ventas';
+        if ($totalImpacto != 0) {
+            $signo = $totalImpacto >= 0 ? '+' : '';
+            $html .= '<br><span style="font-size: 12px;">Ajuste por factores: ' . $signo . $totalImpacto . '% → Precio ajustado: ' . $fmtUSD($precioConAjuste) . '</span>';
+        }
+        $html .= '</div>';
 
         // Decisiones
         if (!empty($decisiones)) {
-            $html .= '<h3>4. OPCIONES DE DECISIÓN</h3>';
+            $html .= '<h3>7. OPCIONES DE DECISIÓN</h3>';
             foreach ($decisiones as $i => $d) {
                 $html .= '<p><strong>' . ($i + 1) . '. ' . $esc($d['name'] ?? '') . '</strong></p>';
-                if (!empty($d['descripcion'])) $html .= '<p style="margin-left:20px; color:#666;">' . $esc($d['descripcion']) . '</p>';
+                if (!empty($d['descripcion'])) {
+                    $html .= '<p style="margin-left:20px; color:#666;">' . $esc($d['descripcion']) . '</p>';
+                }
             }
         }
 
         // Plan y medios
         if (!empty($planes) || !empty($canales)) {
-            $html .= '<h3>5. PLAN DE TRABAJO</h3>';
+            $html .= '<h3>8. PLAN DE TRABAJO</h3>';
             foreach ($planes as $i => $p) {
                 $html .= '<p><strong>' . ($i + 1) . '. ' . $esc($p['name'] ?? '') . '</strong></p>';
-                if (!empty($p['descripcion'])) $html .= '<p style="margin-left:20px; color:#666;">' . $esc($p['descripcion']) . '</p>';
+                if (!empty($p['descripcion'])) {
+                    $html .= '<p style="margin-left:20px; color:#666;">' . $esc($p['descripcion']) . '</p>';
+                }
             }
             if (!empty($canales)) {
                 $html .= '<h4>Medios publicitarios</h4><p>';
-                foreach ($canales as $c) $html .= '<span class="canal-chip">' . $esc($c['name'] ?? '') . '</span> ';
+                foreach ($canales as $c) {
+                    $html .= '<span class="canal-chip">' . $esc($c['name'] ?? '') . '</span> ';
+                }
                 $html .= '</p>';
             }
         }
 
         // Footer
-        $html .= '<div class="footer"><p>Nuestra mayor satisfacción es poner a su disposición la información necesaria y datos referenciales que le sirvan de apoyo para tomar la mejor decisión.</p>';
-        $html .= '<p><strong>Saludos cordiales</strong><br>' . $fecha . '</p></div>';
+        $html .= '<div class="footer">';
+        $html .= '<p>Nuestra mayor satisfacción es poner a su disposición la información necesaria y datos referenciales que le sirvan de apoyo para tomar la mejor decisión.</p>';
+        $html .= '<p><strong>Saludos cordiales</strong><br>' . $fecha . '</p>';
+        $html .= '</div>';
+        
         $html .= '</body></html>';
 
         return $html;
@@ -375,14 +541,41 @@ class AvePrincipal extends RecordService
             }
         }
 
+        // Obtener datos del usuario asignado
+        $assignedUser = null;
+        $userImageId = null;
+        if ($entity->get('assignedUserId')) {
+            $assignedUser = $em->getEntity('User', $entity->get('assignedUserId'));
+            if ($assignedUser) {
+                $userImageId = $assignedUser->get('cImagenId');
+            }
+        }
+        
+        // Obtener datos del equipo
+        $teamId = null;
+        $teamName = null;
+        $teamIds = $entity->get('teamsIds');
+        if ($teamIds && is_array($teamIds) && count($teamIds) > 0) {
+            $teamId = $teamIds[0];
+            $team = $em->getEntity('Team', $teamId);
+            if ($team) {
+                $teamName = $team->get('name');
+            }
+        }
+
+        $aveData = $this->formatAvePrincipal($entity);
+        $aveData['assignedUserImageId'] = $userImageId;
+        $aveData['teamId'] = $teamId;
+        $aveData['teamName'] = $teamName;
+
         return [
             'success' => true,
             'data' => [
-                'ave'         => $this->formatAvePrincipal($entity),
+                'ave'         => $aveData,
                 'inmueble'    => $inmueble,
                 'referencias' => $this->getReferencias($id),
                 'analisis'    => $this->getAnalisisRespuestas($id),
-                'factores'    => $this->getItemsRelacionados($id, 'factor'),
+                'factoresAplicados' => $this->getFactoresAplicados($id),
                 'decisiones'  => $this->getItemsRelacionados($id, 'decision'),
                 'canales'     => $this->getItemsRelacionados($id, 'canal'),
                 'planes'      => $this->getItemsRelacionados($id, 'plan'),
@@ -391,7 +584,84 @@ class AvePrincipal extends RecordService
     }
 
     // ──────────────────────────────────────────────────────────────
-    // Guardar formulario completo
+    // Factores Aplicados (nuevo)
+    // ──────────────────────────────────────────────────────────────
+    private function getFactoresAplicados(string $avePrincipalId): array
+    {
+        $items = $this->entityManager->getRDBRepository('AveFactorAplicado')
+            ->where(['avePrincipalId' => $avePrincipalId])
+            ->order('id', 'ASC')
+            ->find();
+
+        $result = [];
+        $totalImpacto = 0;
+        foreach ($items as $item) {
+            $factorCatalogo = $this->entityManager->getEntity('AveFactoresDecisionesCanalesPlan', $item->get('factorCatalogoId'));
+            $tipo = $item->get('tipo');
+            $impacto = $tipo === 'positivo' ? 1 : -1;
+            $totalImpacto += $impacto;
+            
+            $result[] = [
+                'id' => $item->getId(),
+                'factorCatalogoId' => $item->get('factorCatalogoId'),
+                'factorName' => $factorCatalogo ? $factorCatalogo->get('name') : '',
+                'tipo' => $tipo,
+                'impactoPorcentual' => $item->get('impactoPorcentual'),
+            ];
+        }
+        
+        // Actualizar el total de impacto en la entidad principal
+        $avePrincipal = $this->entityManager->getEntity('AvePrincipal', $avePrincipalId);
+        if ($avePrincipal) {
+            $avePrincipal->set('totalImpactoFactores', $totalImpacto);
+            $this->entityManager->saveEntity($avePrincipal);
+        }
+        
+        return $result;
+    }
+
+    private function guardarFactoresAplicados(string $avePrincipalId, array $factores): void
+    {
+        $em = $this->entityManager;
+
+        // Eliminar factores existentes
+        $existentes = $em->getRDBRepository('AveFactorAplicado')
+            ->where(['avePrincipalId' => $avePrincipalId])
+            ->find();
+        foreach ($existentes as $f) {
+            $em->removeEntity($f);
+        }
+
+        // Insertar nuevos factores
+        $totalImpacto = 0;
+        foreach ($factores as $factor) {
+            $arr = (array) $factor;
+            if (empty($arr['factorCatalogoId']) || empty($arr['tipo'])) {
+                continue;
+            }
+            
+            $tipo = $arr['tipo'];
+            $impacto = $tipo === 'positivo' ? 1 : -1;
+            $totalImpacto += $impacto;
+            
+            $entity = $em->getNewEntity('AveFactorAplicado');
+            $entity->set('avePrincipalId', $avePrincipalId);
+            $entity->set('factorCatalogoId', $arr['factorCatalogoId']);
+            $entity->set('tipo', $tipo);
+            $entity->set('impactoPorcentual', $impacto);
+            $em->saveEntity($entity);
+        }
+        
+        // Actualizar el total en la entidad principal
+        $avePrincipal = $em->getEntity('AvePrincipal', $avePrincipalId);
+        if ($avePrincipal) {
+            $avePrincipal->set('totalImpactoFactores', $totalImpacto);
+            $em->saveEntity($avePrincipal);
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    // Guardar formulario completo (ACTUALIZADO)
     // ──────────────────────────────────────────────────────────────
     public function guardarCompleto(\stdClass $data): array
     {
@@ -430,7 +700,7 @@ class AvePrincipal extends RecordService
             $this->setIfSet($entity, 'comLegNota', $l->comLegNota ?? null);
         }
 
-        // Guardar referencias (pestañas 4 y 5) - PRIMERO
+        // Guardar referencias (pestañas 4 y 5)
         if (isset($data->referencias) && is_array($data->referencias)) {
             $this->guardarReferencias($data->aveId, $data->referencias);
         }
@@ -440,10 +710,12 @@ class AvePrincipal extends RecordService
             $this->guardarAnalisisRespuestas($data->aveId, $data->analisis);
         }
 
-        // Guardar items relacionados (pestañas 7, 9, 10, 11)
-        if (isset($data->factores)) {
-            $this->guardarItemsRelacionados($data->aveId, $data->factores, 'factor');
+        // Guardar FACTORES APLICADOS (pestaña 7) - NUEVO
+        if (isset($data->factoresAplicados) && is_array($data->factoresAplicados)) {
+            $this->guardarFactoresAplicados($data->aveId, $data->factoresAplicados);
         }
+
+        // Guardar items relacionados (pestañas 9, 10, 11)
         if (isset($data->decisiones)) {
             $this->guardarItemsRelacionados($data->aveId, $data->decisiones, 'decision');
         }
@@ -454,8 +726,7 @@ class AvePrincipal extends RecordService
             $this->guardarItemsRelacionados($data->aveId, $data->planes, 'plan');
         }
 
-        // Pestaña 8 — Precios (DESPUÉS de guardar referencias y items)
-        // Guardar pesos desde el payload
+        // Pestaña 8 — Precios
         if (isset($data->precio)) {
             $p = $data->precio;
             $this->setIfSet($entity, 'valorMax',       isset($p->valorMax)       ? (float)$p->valorMax       : null);
@@ -467,16 +738,23 @@ class AvePrincipal extends RecordService
             $this->setIfSet($entity, 'precioSugerido', isset($p->precioSugerido) ? (float)$p->precioSugerido : null);
             $this->setIfSet($entity, 'ajustePrecio',   isset($p->ajustePrecio)   ? (float)$p->ajustePrecio   : null);
 
-            // pesoOfertas — guardar siempre que venga, aunque sea 0
-            if (isset($p->pesoOfertas)) {
+            // pesoOfertas - usar 50 como default si no existe o es null
+            if (isset($p->pesoOfertas) && $p->pesoOfertas !== null && $p->pesoOfertas !== '') {
                 $pesoOfertas = (float)$p->pesoOfertas;
-                $pesoOfertas = max(0, min(100, $pesoOfertas)); // clamp 0-100
+                $pesoOfertas = max(0, min(100, $pesoOfertas));
                 $entity->set('pesoOfertas', $pesoOfertas);
-                $entity->set('pesoVentas',  100 - $pesoOfertas);
+                $entity->set('pesoVentas', 100 - $pesoOfertas);
+            } else {
+                // Si no viene peso, establecer 50-50 solo si no tiene valor previo
+                $pesoActual = $entity->get('pesoOfertas');
+                if ($pesoActual === null || $pesoActual === '') {
+                    $entity->set('pesoOfertas', 50);
+                    $entity->set('pesoVentas', 50);
+                }
             }
         }
 
-        // Recalcular precios basados en referencias guardadas
+        // Recalcular precios
         $this->recalcularPreciosParaEntity($entity);
 
         $em->saveEntity($entity);
@@ -492,46 +770,87 @@ class AvePrincipal extends RecordService
         $em = $this->entityManager;
         $avePrincipalId = $entity->getId();
         
-        // Obtener referencias activas
+        $GLOBALS['log']->info('=== RECALCULAR PRECIOS PARA ENTITY ===');
+        $GLOBALS['log']->info('AVE ID: ' . $avePrincipalId);
+        
+        // Llamar al método de debugging
+        $this->debugReferencias($avePrincipalId);
+        
+        // Obtener referencias que se usan en cálculo
         $referencias = $em->getRDBRepository('AveInmuebleReferencia')
             ->where([
                 'avePrincipalId' => $avePrincipalId,
                 'usarCalculo' => true
             ])->find();
         
-        $ofertas = [];
-        $ventas = [];
+        $GLOBALS['log']->info('Referencias con usarCalculo=true: ' . count($referencias));
+        
+        // Variables para acumular
+        $sumaPreciosOfertas = 0;
+        $sumaAreasOfertas = 0;
+        $sumaPreciosVentas = 0;
+        $sumaAreasVentas = 0;
+        $todosLosPreciosM2 = [];
         
         foreach ($referencias as $ref) {
             $precio = $ref->get('valorReferencial');
             $area = $ref->get('areaConstruida');
             $tipo = $ref->get('tipo');
             
+            $GLOBALS['log']->info('Procesando referencia - Tipo: ' . $tipo . ', Precio: ' . $precio . ', Área: ' . $area);
+            
             if ($precio && $area && $area > 0) {
                 $precioM2 = $precio / $area;
+                $todosLosPreciosM2[] = $precioM2;
+                
+                $GLOBALS['log']->info('  Precio M2 calculado: ' . $precioM2);
+                
                 if ($tipo === 'promocion') {
-                    $ofertas[] = $precioM2;
+                    $sumaPreciosOfertas += $precio;
+                    $sumaAreasOfertas += $area;
+                    $GLOBALS['log']->info('  Acumulado Ofertas - SumaPrecios: ' . $sumaPreciosOfertas . ', SumaAreas: ' . $sumaAreasOfertas);
                 } else {
-                    $ventas[] = $precioM2;
+                    $sumaPreciosVentas += $precio;
+                    $sumaAreasVentas += $area;
+                    $GLOBALS['log']->info('  Acumulado Ventas - SumaPrecios: ' . $sumaPreciosVentas . ', SumaAreas: ' . $sumaAreasVentas);
                 }
+            } else {
+                $GLOBALS['log']->warning('  Referencia ignorada - Precio o área inválida');
             }
         }
         
-        // Calcular estadísticas
-        $ofertaPromedio = !empty($ofertas) ? array_sum($ofertas) / count($ofertas) : 0;
-        $ventaPromedio = !empty($ventas) ? array_sum($ventas) / count($ventas) : 0;
-        $valorMaxM2 = !empty(array_merge($ofertas, $ventas)) ? max(array_merge($ofertas, $ventas)) : 0;
-        $valorMinM2 = !empty(array_merge($ofertas, $ventas)) ? min(array_merge($ofertas, $ventas)) : 0;
+        // Calcular precio M2 promedio por tipo
+        $precioM2Ofertas = ($sumaAreasOfertas > 0) ? $sumaPreciosOfertas / $sumaAreasOfertas : 0;
+        $precioM2Ventas = ($sumaAreasVentas > 0) ? $sumaPreciosVentas / $sumaAreasVentas : 0;
         
-        // Obtener pesos guardados o usar default
-        $pesoOfertas = $entity->get('pesoOfertas') ?? 70;
-        $pesoVentas = $entity->get('pesoVentas') ?? 30;
+        $GLOBALS['log']->info('Resultados intermedios:');
+        $GLOBALS['log']->info('  Precio M2 Ofertas: ' . $precioM2Ofertas . ' (SumaPrecios: ' . $sumaPreciosOfertas . ' / SumaAreas: ' . $sumaAreasOfertas . ')');
+        $GLOBALS['log']->info('  Precio M2 Ventas: ' . $precioM2Ventas . ' (SumaPrecios: ' . $sumaPreciosVentas . ' / SumaAreas: ' . $sumaAreasVentas . ')');
         
-        // Calcular precio promedio ponderado
-        $precioM2Promedio = 0;
-        if ($ofertaPromedio > 0 || $ventaPromedio > 0) {
-            $precioM2Promedio = ($ofertaPromedio * $pesoOfertas / 100) + ($ventaPromedio * $pesoVentas / 100);
+        // Obtener pesos
+        $pesoOfertas = $entity->get('pesoOfertas');
+        if ($pesoOfertas === null || $pesoOfertas === '') {
+            $pesoOfertas = 50;
+            $entity->set('pesoOfertas', 50);
         }
+        $pesoVentas = 100 - $pesoOfertas;
+        $entity->set('pesoVentas', $pesoVentas);
+        
+        $GLOBALS['log']->info('Pesos aplicados - Ofertas: ' . $pesoOfertas . '%, Ventas: ' . $pesoVentas . '%');
+        
+        // Calcular precio M2 ponderado
+        $precioM2Ponderado = 0;
+        if ($precioM2Ofertas > 0 || $precioM2Ventas > 0) {
+            $precioM2Ponderado = ($precioM2Ofertas * $pesoOfertas / 100) + ($precioM2Ventas * $pesoVentas / 100);
+        }
+        
+        $GLOBALS['log']->info('Precio M2 Ponderado: ' . $precioM2Ponderado);
+        
+        // Obtener valores máximos y mínimos
+        $valorMaxM2 = !empty($todosLosPreciosM2) ? max($todosLosPreciosM2) : 0;
+        $valorMinM2 = !empty($todosLosPreciosM2) ? min($todosLosPreciosM2) : 0;
+        
+        $GLOBALS['log']->info('Valores M2 - Max: ' . $valorMaxM2 . ', Min: ' . $valorMinM2);
         
         // Obtener área del inmueble
         $areaInmueble = 0;
@@ -542,34 +861,54 @@ class AvePrincipal extends RecordService
             }
         }
         
-        $precioOriginal = $precioM2Promedio * $areaInmueble;
-        $precioSugerido = $precioOriginal;
+        $GLOBALS['log']->info('Área del inmueble evaluado: ' . $areaInmueble . ' m²');
         
-        // Ajuste de precio
-        $ajuste = $entity->get('ajustePrecio') ?? 0;
-        $rangoMin = $precioSugerido * (1 - $ajuste / 100);
-        $rangoMax = $precioSugerido * (1 + $ajuste / 100);
+        // Calcular precios
+        $precioMaximo = $valorMaxM2 * $areaInmueble;
+        $precioMinimo = $valorMinM2 * $areaInmueble;
+        $precioVenta = $precioM2Ponderado * $areaInmueble;
+        
+        $GLOBALS['log']->info('Precios calculados:');
+        $GLOBALS['log']->info('  Precio Máximo: ' . $precioMaximo);
+        $GLOBALS['log']->info('  Precio Mínimo: ' . $precioMinimo);
+        $GLOBALS['log']->info('  Precio Venta: ' . $precioVenta);
+        
+        // Aplicar ajuste
+        $ajuste = $entity->get('ajustePrecio');
+        if ($ajuste === null || $ajuste === '') {
+            $ajuste = 0;
+            $entity->set('ajustePrecio', 0);
+        }
+        
+        $precioAjustado = $precioVenta * (1 + $ajuste / 100);
+        $rangoMin = $precioAjustado * (1 - $ajuste / 100);
+        $rangoMax = $precioAjustado * (1 + $ajuste / 100);
+        
+        $GLOBALS['log']->info('Con ajuste del ' . $ajuste . '%:');
+        $GLOBALS['log']->info('  Precio Ajustado: ' . $precioAjustado);
+        $GLOBALS['log']->info('  Rango: ' . $rangoMin . ' - ' . $rangoMax);
         
         // Guardar valores
         $entity->set('valorMax', round($valorMaxM2, 2));
         $entity->set('valorMin', round($valorMinM2, 2));
-        $entity->set('valorPromedio', round($precioM2Promedio, 2));
-        $entity->set('precioMax', round($valorMaxM2 * $areaInmueble, 2));
-        $entity->set('precioMin', round($valorMinM2 * $areaInmueble, 2));
-        $entity->set('precioOriginal', round($precioOriginal, 2));
-        $entity->set('precioSugerido', round($precioSugerido, 2));
+        $entity->set('valorPromedio', round($precioM2Ponderado, 2));
+        $entity->set('precioMax', round($precioMaximo, 2));
+        $entity->set('precioMin', round($precioMinimo, 2));
+        $entity->set('precioOriginal', round($precioVenta, 2));
+        $entity->set('precioSugerido', round($precioAjustado, 2));
         $entity->set('rangoPrecioMin', round($rangoMin, 2));
         $entity->set('rangoPrecioMax', round($rangoMax, 2));
+        
+        $GLOBALS['log']->info('=== FIN RECALCULAR PRECIOS ===');
     }
 
     // ──────────────────────────────────────────────────────────────
-    // Items relacionados (factores, decisiones, canales, planes)
+    // Items relacionados
     // ──────────────────────────────────────────────────────────────
     private function guardarItemsRelacionados(string $avePrincipalId, array $items, string $tipo): void
     {
         $em = $this->entityManager;
         
-        // Eliminar relaciones existentes para este tipo
         $existentes = $em->getRDBRepository('AvePrincipalItem')
             ->where([
                 'avePrincipalId' => $avePrincipalId,
@@ -580,7 +919,6 @@ class AvePrincipal extends RecordService
             $em->removeEntity($existente);
         }
         
-        // Crear nuevas relaciones
         foreach ($items as $item) {
             $itemId = is_object($item) ? $item->id : $item['id'];
             if (empty($itemId)) continue;
@@ -638,12 +976,10 @@ class AvePrincipal extends RecordService
             }
         }
 
-        // fotoId se maneja por separado (ver abajo)
         $campos = [
             'tipo','tipoPropiedad','usarCalculo','subtipoPropiedad','valorReferencial','areaTerreno',
             'areaConstruida','antiguedad','habitaciones','banos','estacionamiento','piso','ascensores',
             'terraza','acabados','seguridad','valorm2','descripcion','enlace'
-            // ← fotoId removido del array genérico
         ];
 
         foreach ($referencias as $refData) {
@@ -663,17 +999,13 @@ class AvePrincipal extends RecordService
                 }
             }
 
-            // Manejar fotoId explícitamente
             if (array_key_exists('fotoId', $refArr) && !empty($refArr['fotoId'])) {
                 $ref->set('fotoId', $refArr['fotoId']);
-                // En EspoCRM, los campos image tienen un campo virtual para el nombre
-                // Intentar obtener el nombre del attachment para completar el campo foto
                 $attachment = $em->getEntity('Attachment', $refArr['fotoId']);
                 if ($attachment) {
-                    $ref->set('foto', $refArr['fotoId']); // algunos campos image usan el ID directamente
+                    $ref->set('foto', $refArr['fotoId']);
                 }
             } elseif (array_key_exists('fotoId', $refArr) && empty($refArr['fotoId'])) {
-                // Si se envió fotoId vacío, limpiar la foto
                 $ref->set('fotoId', null);
             }
 
@@ -697,44 +1029,50 @@ class AvePrincipal extends RecordService
     // ──────────────────────────────────────────────────────────────
     // Análisis FODA
     // ──────────────────────────────────────────────────────────────
-    private function guardarAnalisis(string $avePrincipalId, array $analisis): void
+    private function getAnalisisRespuestas(string $avePrincipalId): array
     {
-        $em = $this->entityManager;
-        $existentes = $em->getRDBRepository('AveAnalisis')
-            ->where(['avePrincipalId' => $avePrincipalId])->find();
-        $idsNuevos = array_filter(array_column($analisis, 'id'));
-        foreach ($existentes as $an) {
-            if (!in_array($an->getId(), $idsNuevos)) {
-                $em->removeEntity($an);
-            }
-        }
-        foreach ($analisis as $anData) {
-            $anArr = (array) $anData;
-            if (!empty($anArr['id'])) {
-                $an = $em->getEntity('AveAnalisis', $anArr['id']);
-            } else {
-                $an = $em->getNewEntity('AveAnalisis');
-                $an->set('avePrincipalId', $avePrincipalId);
-            }
-            if (!$an) continue;
-            if (array_key_exists('name', $anArr)) $an->set('name', $anArr['name']);
-            if (array_key_exists('tipo', $anArr)) $an->set('tipo', $anArr['tipo']);
-            if (array_key_exists('detalle', $anArr)) $an->set('detalle', $anArr['detalle']);
-            $em->saveEntity($an);
-        }
-    }
-
-    private function getAnalisis(string $avePrincipalId): array
-    {
-        $items = $this->entityManager->getRDBRepository('AveAnalisis')
+        $items = $this->entityManager->getRDBRepository('AveAnalisisRespuesta')
             ->where(['avePrincipalId' => $avePrincipalId])
-            ->order('tipo', 'ASC')
+            ->order('id', 'ASC')
             ->find();
+
         $result = [];
         foreach ($items as $item) {
-            $result[] = (array) $item->getValueMap();
+            $titulo = $this->entityManager->getEntity('AveAnalisis', $item->get('aveAnalisisId'));
+            $result[] = [
+                'id'            => $item->getId(),
+                'aveAnalisisId' => $item->get('aveAnalisisId'),
+                'tituloName'    => $titulo ? $titulo->get('name') : '',
+                'tipo'          => $item->get('tipo'),
+                'descripcion'   => $item->get('descripcion'),
+            ];
         }
         return $result;
+    }
+
+    private function guardarAnalisisRespuestas(string $avePrincipalId, array $respuestas): void
+    {
+        $em = $this->entityManager;
+
+        $existentes = $em->getRDBRepository('AveAnalisisRespuesta')
+            ->where(['avePrincipalId' => $avePrincipalId])
+            ->find();
+        foreach ($existentes as $r) {
+            $em->removeEntity($r);
+        }
+
+        foreach ($respuestas as $resp) {
+            $arr = (array) $resp;
+            if (empty($arr['aveAnalisisId']) || empty($arr['tipo']) || empty($arr['descripcion'])) {
+                continue;
+            }
+            $entity = $em->getNewEntity('AveAnalisisRespuesta');
+            $entity->set('avePrincipalId',  $avePrincipalId);
+            $entity->set('aveAnalisisId',   $arr['aveAnalisisId']);
+            $entity->set('tipo',            $arr['tipo']);
+            $entity->set('descripcion',     $arr['descripcion']);
+            $em->saveEntity($entity);
+        }
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -793,55 +1131,6 @@ class AvePrincipal extends RecordService
             ];
         }
         return ['success' => true, 'data' => $result];
-    }
-
-    private function getAnalisisRespuestas(string $avePrincipalId): array
-    {
-        $items = $this->entityManager->getRDBRepository('AveAnalisisRespuesta')
-            ->where(['avePrincipalId' => $avePrincipalId])
-            ->order('id', 'ASC')
-            ->find();
-
-        $result = [];
-        foreach ($items as $item) {
-            // Cargar el título desde la entidad catálogo
-            $titulo = $this->entityManager->getEntity('AveAnalisis', $item->get('aveAnalisisId'));
-            $result[] = [
-                'id'            => $item->getId(),
-                'aveAnalisisId' => $item->get('aveAnalisisId'),
-                'tituloName'    => $titulo ? $titulo->get('name') : '',
-                'tipo'          => $item->get('tipo'),
-                'descripcion'   => $item->get('descripcion'),
-            ];
-        }
-        return $result;
-    }
-
-    private function guardarAnalisisRespuestas(string $avePrincipalId, array $respuestas): void
-    {
-        $em = $this->entityManager;
-
-        // Borrar todas las respuestas previas del AVE
-        $existentes = $em->getRDBRepository('AveAnalisisRespuesta')
-            ->where(['avePrincipalId' => $avePrincipalId])
-            ->find();
-        foreach ($existentes as $r) {
-            $em->removeEntity($r);
-        }
-
-        // Insertar las nuevas
-        foreach ($respuestas as $resp) {
-            $arr = (array) $resp;
-            if (empty($arr['aveAnalisisId']) || empty($arr['tipo']) || empty($arr['descripcion'])) {
-                continue;
-            }
-            $entity = $em->getNewEntity('AveAnalisisRespuesta');
-            $entity->set('avePrincipalId',  $avePrincipalId);
-            $entity->set('aveAnalisisId',   $arr['aveAnalisisId']);
-            $entity->set('tipo',            $arr['tipo']);
-            $entity->set('descripcion',     $arr['descripcion']);
-            $em->saveEntity($entity);
-        }
     }
 
     public function crearAnalisisTitulo(\stdClass $data): array
@@ -923,19 +1212,17 @@ class AvePrincipal extends RecordService
     {
         $repo = $this->entityManager->getRDBRepository('AveFactoresDecisionesCanalesPlan');
 
-        // Construir condición: predeterminados + los del team del usuario
         if ($teamId) {
             $where = [
-                'type' => $tipo,
+                'tipo' => $tipo,
                 'OR'   => [
                     ['predeterminado' => true],
                     ['teamId'         => $teamId]
                 ]
             ];
         } else {
-            // Sin team: solo predeterminados
             $where = [
-                'tipo'          => $tipo,
+                'tipo' => $tipo,
                 'predeterminado'=> true
             ];
         }
@@ -1034,6 +1321,10 @@ class AvePrincipal extends RecordService
             'rangoPrecioMax' => $entity->get('rangoPrecioMax'),
             'assignedUserId' => $entity->get('assignedUserId'),
             'assignedUserName' => $entity->get('assignedUserName'),
+            'totalImpactoFactores' => $entity->get('totalImpactoFactores'),
+            'assignedUserImageId' => null,
+            'teamId' => null,
+            'teamName' => null,
         ];
     }
 

@@ -169,23 +169,34 @@ class AvePrincipal extends RecordBase
     {
         try {
             $data = $request->getParsedBody();
+            $GLOBALS['log']->info('=== RECALCULAR PRECIOS ===');
+            $GLOBALS['log']->info('Datos recibidos: ' . json_encode($data));
+            
             if (empty($data->aveId)) {
                 throw new BadRequest("Parámetro 'aveId' requerido.");
             }
             
             $service = $this->getServiceFactory()->create('AvePrincipal');
             
-            // Obtener la entidad actualizada
             $em = $this->getEntityManager();
             $entity = $em->getEntity('AvePrincipal', $data->aveId);
             
+            if (!$entity) {
+                throw new NotFound("AVE no encontrado: " . $data->aveId);
+            }
+            
+            $GLOBALS['log']->info('Peso Ofertas actual: ' . $entity->get('pesoOfertas'));
+            $GLOBALS['log']->info('Ajuste Precio actual: ' . $entity->get('ajustePrecio'));
+            
             if (property_exists($data, 'pesoOfertas')) {
+                $GLOBALS['log']->info('Actualizando pesoOfertas a: ' . $data->pesoOfertas);
                 $entity->set('pesoOfertas', (float)$data->pesoOfertas);
                 $entity->set('pesoVentas', 100 - (float)$data->pesoOfertas);
                 $em->saveEntity($entity);
             }
             
             if (property_exists($data, 'ajustePrecio')) {
+                $GLOBALS['log']->info('Actualizando ajustePrecio a: ' . $data->ajustePrecio);
                 $entity->set('ajustePrecio', (float)$data->ajustePrecio);
                 $em->saveEntity($entity);
             }
@@ -196,7 +207,7 @@ class AvePrincipal extends RecordBase
             // Recargar la entidad para obtener los valores actualizados
             $entity = $em->getEntity('AvePrincipal', $data->aveId);
             
-            return [
+            $result = [
                 'success' => true,
                 'data' => [
                     'valorMax' => $entity->get('valorMax'),
@@ -213,8 +224,13 @@ class AvePrincipal extends RecordBase
                     'ajustePrecio' => $entity->get('ajustePrecio')
                 ]
             ];
+            
+            $GLOBALS['log']->info('Resultado enviado: ' . json_encode($result));
+            
+            return $result;
         } catch (\Exception $e) {
             $GLOBALS['log']->error('Error en recalcularPrecios: ' . $e->getMessage());
+            $GLOBALS['log']->error($e->getTraceAsString());
             throw new BadRequest($e->getMessage());
         }
     }

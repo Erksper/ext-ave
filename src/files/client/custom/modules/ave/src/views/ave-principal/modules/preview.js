@@ -31,10 +31,9 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         var referenciasPromocion = referencias.filter(function(r) { return r.tipo === 'promocion'; });
         var referenciasVendidos = referencias.filter(function(r) { return r.tipo === 'vendido'; });
         
-        // FODA - CORREGIDO: usar getFodaData() o acceder directamente a los items
+        // FODA
         var analisisData = { fortaleza: [], debilidad: [] };
         if (view.fodaManager) {
-            // Acceder directamente a los items del FODA
             analisisData = {
                 fortaleza: view.fodaManager.items ? view.fodaManager.items.fortaleza || [] : [],
                 debilidad: view.fodaManager.items ? view.fodaManager.items.debilidad || [] : []
@@ -43,7 +42,13 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         var fortalezas = analisisData.fortaleza;
         var debilidades = analisisData.debilidad;
         
-        var factores = view.factoresManager ? view.factoresManager.getData() : [];
+        // Factores aplicados
+        var factoresAplicados = view.factoresManager ? view.factoresManager.getData() : [];
+        var totalImpactoFactores = 0;
+        factoresAplicados.forEach(function(f) {
+            totalImpactoFactores += (f.tipo === 'positivo') ? 1 : -1;
+        });
+        
         var decisiones = view.decisionesManager ? view.decisionesManager.getData() : [];
         var canales = view.canalesManager ? view.canalesManager.getData() : [];
         var planes = view.planesManager ? view.planesManager.getData() : [];
@@ -56,11 +61,18 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         var valorPromedio = parseFloat(view.$el.find('#valorPromedio').val()) || 0;
         var precioOriginal = parseFloat(view.$el.find('#precioOriginal').val()) || 0;
         var ajustePrecio = parseFloat(view.$el.find('#ajustePrecio').val()) || 0;
-        var pesoOfertas = parseFloat(view.$el.find('#pesoOfertas').val()) || 70;
+        var pesoOfertas = parseFloat(view.$el.find('#pesoOfertas').val()) || 50;
         var pesoVentas = 100 - pesoOfertas;
 
-        // Datos del usuario que creó el AVE
+        // Datos del asesor que creó el AVE
         var assignedUserName = ave.assignedUserName || 'Usuario';
+        var assignedUserImageId = ave.assignedUserImageId || null;
+        var assignedUserPhone = ave.telefonoCliente || null;
+        var teamName = ave.teamName || null;
+        
+        // Logo del equipo
+        var teamLogoUrl = view.teamLogoUrl || null;
+        
         var fechaActual = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
         var horaActual = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
@@ -76,112 +88,153 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             comLegNota: view.$el.find('#comLegNota').val()
         };
 
-        // Helper para formatear números sin decimales
         var formatPrice = function (n) {
             if (!n || isNaN(n)) return '0';
             return Math.round(parseFloat(n)).toLocaleString('es-VE');
         };
 
-        // Construir HTML del reporte
-        var html = '';
+        var formatPriceDec = function (n) {
+            if (!n || isNaN(n)) return '0.00';
+            return parseFloat(n).toFixed(2).toLocaleString('es-VE');
+        };
 
+        var getImageUrl = function(imageId) {
+            if (!imageId) return null;
+            return 'api/v1/Attachment/file/' + imageId;
+        };
+
+        var escapeHtml = function(text) {
+            if (!text) return '';
+            return String(text).replace(/[&<>"']/g, function(m) {
+                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+            });
+        };
+
+        // Helper para formato de tipo de propiedad
+        var formatTipo = function(tipo) {
+            var map = {
+                habitacional: 'Residencial',
+                comercial: 'Comercial',
+                industrial: 'Industrial',
+                vacacional: 'Vacacional',
+                terreno: 'Terreno'
+            };
+            return map[tipo] || tipo || '-';
+        };
+
+        var formatSubtipo = function(subtipo) {
+            if (!subtipo) return '-';
+            var map = {
+                departamento: 'Apartamento',
+                'town-house': 'Town-House',
+                galpon: 'Galpón',
+                'casa-bote': 'Casa Bote',
+                'casa-duplex': 'Casa Duplex',
+                'fondo-de-comercio': 'Fondo de comercio',
+                'hotel-posada': 'Hotel/Posada',
+                'tiempo-compartido': 'Tiempo compartido',
+                'inmueble-productivo': 'Inmueble productivo'
+            };
+            return map[subtipo] || subtipo.charAt(0).toUpperCase() + subtipo.slice(1).replace(/-/g, ' ');
+        };
+
+        var html = '';
         html += '<div class="ave-preview-reporte" style="font-family: Arial, sans-serif; max-width: 1100px; margin: 0 auto;">';
 
-        // Título principal
-        html += '<div style="text-align: center; margin-bottom: 20px;">';
-        html += '<h1 style="color: #B8A279; margin-bottom: 5px;">ANÁLISIS PARA UNA VENTA EXITOSA</h1>';
-        html += '<h2 style="color: #666; font-size: 18px; margin-top: 0;">' + this.escape(ave.nombreCliente || 'Cliente') + '</h2>';
+        // ─────────────────────────────────────────────────────────────
+        // HEADER: Logo izquierda | Título centro | Foto asesor derecha
+        // ─────────────────────────────────────────────────────────────
+        html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #B8A279; padding-bottom: 15px;">';
+        
+        // Logo izquierda
+        html += '<div style="width: 120px; text-align: left;">';
+        if (teamLogoUrl) {
+            html += '<img src="' + escapeHtml(teamLogoUrl) + '" style="max-height: 60px; max-width: 120px; object-fit: contain;" onerror="this.style.display=\'none\'">';
+        }
         html += '</div>';
-
-        // Texto de introducción
-        html += '<div style="margin-bottom: 25px; text-align: justify; line-height: 1.6;">';
-        html += '<p>Estimado(a) ' + this.escape(ave.nombreCliente || 'Cliente') + ', Reciba de todo el equipo que labora en nuestras oficinas un cordial saludo de respeto hacia usted por brindarnos su confianza. Le presentamos el siguiente Análisis de Venta Exitoso correspondiente a su propiedad; con el propósito de mostrarle referencias actuales del mercado inmobiliario que le ayuden a tomar la mejor decisión sobre el valor promocional de su inmueble y realizar un excelente negocio inmobiliario.</p>';
+        
+        // Título centro
+        html += '<div style="flex: 1; text-align: center;">';
+        html += '<h1 style="color: #B8A279; margin: 0; font-size: 20px;">ANÁLISIS PARA UNA VENTA EXITOSA</h1>';
+        html += '<h2 style="color: #666; margin: 5px 0 0; font-size: 16px;">' + escapeHtml(ave.nombreCliente || 'Cliente') + '</h2>';
+        html += '</div>';
+        
+        // Foto asesor derecha
+        html += '<div style="width: 120px; text-align: right;">';
+        if (assignedUserImageId) {
+            html += '<img src="' + escapeHtml(getImageUrl(assignedUserImageId)) + '" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid #B8A279;" onerror="this.style.display=\'none\'">';
+        } else {
+            html += '<div style="width: 50px; height: 50px; border-radius: 50%; background: #B8A279; display: inline-flex; align-items: center; justify-content: center;">';
+            html += '<i class="fas fa-user" style="color: white; font-size: 24px;"></i>';
+            html += '</div>';
+        }
+        html += '</div>';
         html += '</div>';
 
         // Referencia
         html += '<div style="text-align: center; margin-bottom: 20px;">';
-        html += '<p><strong>Ref: ' + this.escape(ave.numeroAve || 'N/A') + '</strong></p>';
+        html += '<p><strong>Ref: ' + escapeHtml(ave.numeroAve || 'N/A') + '</strong></p>';
+        html += '</div>';
+
+        // Texto de introducción
+        html += '<div style="margin-bottom: 25px; text-align: justify; line-height: 1.6; background: #f8f9fa; padding: 15px; border-radius: 8px;">';
+        html += '<p style="margin: 0;">Estimado(a) ' + escapeHtml(ave.nombreCliente || 'Cliente') + ', Reciba de todo el equipo que labora en nuestras oficinas un cordial saludo de respeto hacia usted por brindarnos su confianza. Le presentamos el siguiente Análisis de Venta Exitoso correspondiente a su propiedad; con el propósito de mostrarle referencias actuales del mercado inmobiliario que le ayuden a tomar la mejor decisión sobre el valor promocional de su inmueble y realizar un excelente negocio inmobiliario.</p>';
         html += '</div>';
 
         // ─────────────────────────────────────────────────────────────
         // UBICACIÓN
         // ─────────────────────────────────────────────────────────────
+        var ubicacion = [
+            inmueble.urbanizacion,
+            inmueble.avenidaCalle,
+            inmueble.ciudad,
+            inmueble.estado
+        ].filter(Boolean).join(', ');
+        
         html += '<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">';
-        html += '<h3 style="color: #B8A279; margin-top: 0;"><i class="fas fa-map-marker-alt"></i> Ubicación</h3>';
-        html += '<p><strong>' + this.escape(inmueble.urbanizacion || '') + ' ' + this.escape(inmueble.avenidaCalle || '') + ', ' + this.escape(inmueble.ciudad || '') + ', ' + this.escape(inmueble.estado || '') + '</strong></p>';
+        html += '<h3 style="color: #B8A279; margin-top: 0; font-size: 14px;"><i class="fas fa-map-marker-alt"></i> Ubicación</h3>';
+        html += '<p><strong>' + escapeHtml(ubicacion || 'No especificada') + '</strong></p>';
         html += '</div>';
 
         // ─────────────────────────────────────────────────────────────
         // FICHA DEL INMUEBLE CON FOTO
         // ─────────────────────────────────────────────────────────────
         html += '<div style="background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; margin-bottom: 20px;">';
-        html += '<h3 style="color: #B8A279; margin-top: 0;"><i class="fas fa-building"></i> Ficha del Inmueble</h3>';
+        html += '<h3 style="color: #B8A279; margin-top: 0; font-size: 14px;"><i class="fas fa-building"></i> Ficha del Inmueble</h3>';
         
-        // Tabla de datos del inmueble
         html += '<table style="width: 100%; border-collapse: collapse;">';
-        
-        // Fila 1: Tipo de inmueble y foto
         html += '<tr>';
-        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Tipo de inmueble</strong></td>';
-        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;">' + this.escape(this.formatTipo(inmueble.tipoPropiedad)) + ' - ' + this.escape(this.formatSubtipo(inmueble.subtipoPropiedad)) + '</td>';
-        html += '<td rowspan="6" style="width: 150px; text-align: center; vertical-align: middle; border-bottom: 1px solid #eee;">';
+        html += '<td style="padding: 8px; border-bottom: 1px solid #eee; width: 30%;"><strong>Tipo de inmueble</strong></td>';
+        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(formatTipo(inmueble.tipoPropiedad)) + ' - ' + escapeHtml(formatSubtipo(inmueble.subtipoPropiedad)) + '</td>';
+        html += '<td rowspan="6" style="width: 150px; text-align: center; vertical-align: middle;">';
         if (inmueble.fotoId) {
-            html += '<img src="api/v1/Attachment/file/' + inmueble.fotoId + '" style="max-width: 130px; max-height: 130px; border-radius: 8px; border: 1px solid #ddd;">';
+            html += '<img src="api/v1/Attachment/file/' + escapeHtml(inmueble.fotoId) + '" style="max-width: 130px; max-height: 130px; border-radius: 8px; border: 1px solid #ddd;" onerror="this.style.display=\'none\'">';
         } else {
             html += '<div style="width: 130px; height: 100px; background: #f0f0f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #999;"><i class="fas fa-image" style="font-size: 30px;"></i></div>';
         }
         html += '</td>';
         html += '</tr>';
         
-        // Fila 2: Propietario
-        html += '<tr>';
-        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Propietario</strong></td>';
-        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;">' + this.escape(inmueble.nombrePropietario || '-') + '</td>';
-        html += '</tr>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Propietario</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(inmueble.nombrePropietario || '-') + '</td></tr>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>M² C / M² T</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.areaConstruida || '0') + ' / ' + (inmueble.areaTerreno || '0') + '</td></tr>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Antigüedad (años)</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.antiguedad || '-') + '</td></tr>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Habitaciones / Baños</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.numHabitaciones || '-') + ' / ' + (inmueble.numBanos || '-') + '</td></tr>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Estacionamiento</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.puestoEstacionamiento || '-') + '</td></tr>';
         
-        // Fila 3: M² C / M² T
-        html += '<tr>';
-        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>M² C / M² T</strong></td>';
-        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.areaConstruida || '0') + ',00 / ' + (inmueble.areaTerreno || '0') + ',00</td>';
-        html += '</tr>';
-        
-        // Fila 4: Antigüedad
-        html += '<tr>';
-        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Antigüedad (años)</strong></td>';
-        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.antiguedad || '-') + '</td>';
-        html += '</tr>';
-        
-        // Fila 5: Habitaciones / Baños
-        html += '<tr>';
-        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Habitaciones / Baños</strong></td>';
-        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.numHabitaciones || '-') + ' / ' + (inmueble.numBanos || '-') + '</td>';
-        html += '</tr>';
-        
-        // Fila 6: Estacionamiento
-        html += '<tr>';
-        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Estacionamiento</strong></td>';
-        html += '<td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.puestoEstacionamiento || '-') + '</td>';
-        html += '</tr>';
-        
-        // Fila 7: Descripción (si existe)
         if (inmueble.descripcion) {
-            html += '<tr>';
-            html += '<td style="padding: 8px;"><strong>Descripción</strong></td>';
-            html += '<td colspan="2">' + this.escape(inmueble.descripcion) + '</td>';
-            html += '</tr>';
+            html += '<tr><td style="padding: 8px;"><strong>Descripción</strong></td><td colspan="2">' + escapeHtml(inmueble.descripcion) + '</td></tr>';
         }
-        
         html += '</table>';
         html += '</div>';
 
         // ─────────────────────────────────────────────────────────────
-        // REFERENCIAS EN PROMOCIÓN (con fotos)
+        // REFERENCIAS EN PROMOCIÓN
         // ─────────────────────────────────────────────────────────────
         if (referenciasPromocion.length > 0) {
             html += '<div style="margin-bottom: 20px;">';
-            html += '<h3 style="color: #B8A279;">1. VALOR REFERENCIAL DE INMUEBLES COMPARABLES EN PROMOCIÓN</h3>';
+            html += '<h3 style="color: #B8A279; font-size: 14px;">1. VALOR REFERENCIAL DE INMUEBLES COMPARABLES EN PROMOCIÓN</h3>';
             html += '<div style="overflow-x: auto;">';
-            html += '<table style="width: 100%; border-collapse: collapse; font-size: 12px;">';
+            html += '<table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #ddd;">';
             html += '<thead><tr style="background: #B8A279; color: white;">';
             html += '<th style="padding: 8px; border: 1px solid #ddd;">CARACTERÍSTICAS</th>';
             for (var i = 0; i < referenciasPromocion.length; i++) {
@@ -190,14 +243,14 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             html += '</tr></thead><tbody>';
 
             var rows = [
-                { label: 'Tipo', get: function(r) { return this.formatTipo(r.tipoPropiedad) + ' - ' + this.formatSubtipo(r.subtipoPropiedad); } },
-                { label: 'M² C / M² T', get: function(r) { return (r.areaConstruida || '0') + ',00 / ' + (r.areaTerreno || '0') + ',00'; } },
+                { label: 'Tipo', get: function(r) { return formatTipo(r.tipoPropiedad) + ' - ' + formatSubtipo(r.subtipoPropiedad); } },
+                { label: 'M² C / M² T', get: function(r) { return (r.areaConstruida || '0') + ' / ' + (r.areaTerreno || '0'); } },
                 { label: 'Antigüedad (años)', get: function(r) { return r.antiguedad || '-'; } },
                 { label: 'Habitaciones / Baños', get: function(r) { return (r.habitaciones || '-') + ' / ' + (r.banos || '-'); } },
                 { label: 'Estacionamiento', get: function(r) { return r.estacionamiento || '-'; } },
                 { label: 'Terraza', get: function(r) { return r.terraza ? 'Sí' : 'No'; } },
                 { label: 'Valor (USD)', get: function(r) { return r.valorReferencial ? '$ ' + formatPrice(r.valorReferencial) : '-'; } },
-                { label: 'USD x M²', get: function(r) { return r.valorm2 ? '$ ' + r.valorm2.toFixed(2) : '-'; } },
+                { label: 'USD x M²', get: function(r) { return r.valorm2 ? '$ ' + parseFloat(r.valorm2).toFixed(2) : '-'; } },
                 { label: 'Acabados', get: function(r) { return r.acabados || '-'; } }
             ];
 
@@ -205,7 +258,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
                 html += '<tr>';
                 html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>' + rows[r].label + '</strong></td>';
                 for (var j = 0; j < referenciasPromocion.length; j++) {
-                    html += '<td style="padding: 8px; border: 1px solid #ddd;">' + rows[r].get.call(this, referenciasPromocion[j]) + '</td>';
+                    html += '<td style="padding: 8px; border: 1px solid #ddd;">' + escapeHtml(rows[r].get(referenciasPromocion[j])) + '</td>';
                 }
                 html += '</tr>';
             }
@@ -215,7 +268,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Enlace</strong></td>';
             for (var j = 0; j < referenciasPromocion.length; j++) {
                 var enlace = referenciasPromocion[j].enlace;
-                var enlaceHtml = enlace ? '<a href="' + this.escape(enlace) + '" target="_blank">' + this.escape(enlace) + '</a>' : '-';
+                var enlaceHtml = enlace ? '<a href="' + escapeHtml(enlace) + '" target="_blank" rel="noopener">Ver enlace</a>' : '-';
                 html += '<td style="padding: 8px; border: 1px solid #ddd;">' + enlaceHtml + '</td>';
             }
             html += '</tr>';
@@ -225,7 +278,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Foto</strong></td>';
             for (var j = 0; j < referenciasPromocion.length; j++) {
                 var fotoId = referenciasPromocion[j].fotoId;
-                var fotoHtml = fotoId ? '<img src="api/v1/Attachment/file/' + fotoId + '" style="max-width: 60px; max-height: 60px; border-radius: 4px;">' : '-';
+                var fotoHtml = fotoId ? '<img src="api/v1/Attachment/file/' + escapeHtml(fotoId) + '" style="max-width: 50px; max-height: 50px; border-radius: 4px;" onerror="this.style.display=\'none\'">' : '-';
                 html += '<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' + fotoHtml + '</td>';
             }
             html += '</tr>';
@@ -235,13 +288,13 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         }
 
         // ─────────────────────────────────────────────────────────────
-        // REFERENCIAS VENDIDOS (con fotos)
+        // REFERENCIAS VENDIDOS
         // ─────────────────────────────────────────────────────────────
         if (referenciasVendidos.length > 0) {
             html += '<div style="margin-bottom: 20px;">';
-            html += '<h3 style="color: #B8A279;">2. VALOR REFERENCIAL DE INMUEBLES VENDIDOS</h3>';
+            html += '<h3 style="color: #B8A279; font-size: 14px;">2. VALOR REFERENCIAL DE INMUEBLES VENDIDOS</h3>';
             html += '<div style="overflow-x: auto;">';
-            html += '<table style="width: 100%; border-collapse: collapse; font-size: 12px;">';
+            html += '<table style="width: 100%; border-collapse: collapse; font-size: 11px; border: 1px solid #ddd;">';
             html += '<thead><tr style="background: #B8A279; color: white;">';
             html += '<th style="padding: 8px; border: 1px solid #ddd;">CARACTERÍSTICAS</th>';
             for (var i = 0; i < referenciasVendidos.length; i++) {
@@ -253,7 +306,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
                 html += '<tr>';
                 html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>' + rows[r].label + '</strong></td>';
                 for (var j = 0; j < referenciasVendidos.length; j++) {
-                    html += '<td style="padding: 8px; border: 1px solid #ddd;">' + rows[r].get.call(this, referenciasVendidos[j]) + '</td>';
+                    html += '<td style="padding: 8px; border: 1px solid #ddd;">' + escapeHtml(rows[r].get(referenciasVendidos[j])) + '</td>';
                 }
                 html += '</tr>';
             }
@@ -263,7 +316,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Enlace</strong></td>';
             for (var j = 0; j < referenciasVendidos.length; j++) {
                 var enlace = referenciasVendidos[j].enlace;
-                var enlaceHtml = enlace ? '<a href="' + this.escape(enlace) + '" target="_blank">' + this.escape(enlace) + '</a>' : '-';
+                var enlaceHtml = enlace ? '<a href="' + escapeHtml(enlace) + '" target="_blank" rel="noopener">Ver enlace</a>' : '-';
                 html += '<td style="padding: 8px; border: 1px solid #ddd;">' + enlaceHtml + '</td>';
             }
             html += '</tr>';
@@ -273,7 +326,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Foto</strong></td>';
             for (var j = 0; j < referenciasVendidos.length; j++) {
                 var fotoId = referenciasVendidos[j].fotoId;
-                var fotoHtml = fotoId ? '<img src="api/v1/Attachment/file/' + fotoId + '" style="max-width: 60px; max-height: 60px; border-radius: 4px;">' : '-';
+                var fotoHtml = fotoId ? '<img src="api/v1/Attachment/file/' + escapeHtml(fotoId) + '" style="max-width: 50px; max-height: 50px; border-radius: 4px;" onerror="this.style.display=\'none\'">' : '-';
                 html += '<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' + fotoHtml + '</td>';
             }
             html += '</tr>';
@@ -283,84 +336,134 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         }
 
         // ─────────────────────────────────────────────────────────────
-        // FODA - CORREGIDO
+        // FODA
         // ─────────────────────────────────────────────────────────────
         if (fortalezas.length > 0 || debilidades.length > 0) {
             html += '<div style="margin-bottom: 20px;">';
-            html += '<h3 style="color: #B8A279;">3. ANÁLISIS DE FORTALEZAS Y DEBILIDADES</h3>';
+            html += '<h3 style="color: #B8A279; font-size: 14px;">3. ANÁLISIS DE FORTALEZAS Y DEBILIDADES</h3>';
             html += '<div style="display: flex; gap: 20px;">';
             html += '<div style="flex: 1; background: #d4edda; padding: 15px; border-radius: 8px;">';
-            html += '<h4 style="color: #155724; margin-top: 0;"><i class="fas fa-thumbs-up"></i> Fortalezas</h4>';
+            html += '<h4 style="color: #155724; margin-top: 0; font-size: 13px;"><i class="fas fa-thumbs-up"></i> Fortalezas</h4>';
             if (fortalezas.length === 0) {
-                html += '<p>No hay fortalezas registradas</p>';
+                html += '<p style="font-size: 12px;">No hay fortalezas registradas</p>';
             } else {
                 fortalezas.forEach(function(f) {
-                    html += '<div style="margin-bottom: 12px;">';
-                    html += '<strong>' + this.escape(f.tituloName) + '</strong>';
-                    if (f.descripcion) html += '<br><small style="color: #666;">' + this.escape(f.descripcion) + '</small>';
+                    html += '<div style="margin-bottom: 12px; font-size: 12px;">';
+                    html += '<strong>' + escapeHtml(f.tituloName) + '</strong>';
+                    if (f.descripcion) html += '<br><span style="color: #666;">' + escapeHtml(f.descripcion) + '</span>';
                     html += '</div>';
-                }.bind(this));
+                });
             }
             html += '</div>';
             html += '<div style="flex: 1; background: #f8d7da; padding: 15px; border-radius: 8px;">';
-            html += '<h4 style="color: #721c24; margin-top: 0;"><i class="fas fa-thumbs-down"></i> Debilidades</h4>';
+            html += '<h4 style="color: #721c24; margin-top: 0; font-size: 13px;"><i class="fas fa-thumbs-down"></i> Debilidades</h4>';
             if (debilidades.length === 0) {
-                html += '<p>No hay debilidades registradas</p>';
+                html += '<p style="font-size: 12px;">No hay debilidades registradas</p>';
             } else {
                 debilidades.forEach(function(d) {
-                    html += '<div style="margin-bottom: 12px;">';
-                    html += '<strong>' + this.escape(d.tituloName) + '</strong>';
-                    if (d.descripcion) html += '<br><small style="color: #666;">' + this.escape(d.descripcion) + '</small>';
+                    html += '<div style="margin-bottom: 12px; font-size: 12px;">';
+                    html += '<strong>' + escapeHtml(d.tituloName) + '</strong>';
+                    if (d.descripcion) html += '<br><span style="color: #666;">' + escapeHtml(d.descripcion) + '</span>';
                     html += '</div>';
-                }.bind(this));
+                });
             }
             html += '</div>';
             html += '</div></div>';
         }
 
         // ─────────────────────────────────────────────────────────────
+        // FACTORES QUE INFLUYEN EN EL PRECIO
+        // ─────────────────────────────────────────────────────────────
+        if (factoresAplicados.length > 0) {
+            html += '<div style="margin-bottom: 20px;">';
+            html += '<h3 style="color: #B8A279; font-size: 14px;">4. FACTORES QUE INFLUYEN EN EL PRECIO</h3>';
+            html += '<div style="overflow-x: auto;">';
+            html += '<table style="width: 100%; border-collapse: collapse; font-size: 12px; border: 1px solid #ddd;">';
+            html += '<thead><tr style="background: #B8A279; color: white;">';
+            html += '<th style="padding: 8px; border: 1px solid #ddd;">Factor</th>';
+            html += '<th style="padding: 8px; border: 1px solid #ddd; width: 120px; text-align: center;">Impacto</th>';
+            html += '<th style="padding: 8px; border: 1px solid #ddd; width: 100px; text-align: center;">% Afectación</th>';
+            html += '</tr></thead><tbody>';
+            
+            factoresAplicados.forEach(function(f) {
+                var nombreFactor = escapeHtml(f.name || '');
+                var esPositivo = f.tipo === 'positivo';
+                var icono = esPositivo ? '✓' : '✗';
+                var textoImpacto = esPositivo ? 'Positivo' : 'Negativo';
+                var porcentaje = esPositivo ? '+1%' : '-1%';
+                var claseColor = esPositivo ? '#27ae60' : '#e74c3c';
+                
+                html += '<tr>';
+                html += '<td style="padding: 8px; border: 1px solid #ddd;">' + nombreFactor + '</td>';
+                html += '<td style="padding: 8px; border: 1px solid #ddd; text-align: center; color: ' + claseColor + '; font-weight: bold;">' + icono + ' ' + textoImpacto + '</td>';
+                html += '<td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: ' + claseColor + ';">' + porcentaje + '</td>';
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table>';
+            html += '</div>';
+            
+            // Mostrar total de impacto
+            var signoTotal = totalImpactoFactores >= 0 ? '+' : '';
+            var claseTotal = totalImpactoFactores >= 0 ? '#27ae60' : '#e74c3c';
+            html += '<div style="background: #f0f0f0; border-left: 4px solid #B8A279; padding: 12px; margin-top: 16px; text-align: center; font-size: 13px;">';
+            html += '<strong>📊 Total de afectación:</strong> <span style="font-weight: bold; color: ' + claseTotal + ';">' + signoTotal + totalImpactoFactores + '%</span><br>';
+            html += '<small>Debido a estos factores, el precio de la propiedad puede verse afectado en un <strong>' + signoTotal + Math.abs(totalImpactoFactores) + '%</strong></small>';
+            html += '</div>';
+            html += '</div>';
+        }
+
+        // ─────────────────────────────────────────────────────────────
         // SITUACIÓN LEGAL
         // ─────────────────────────────────────────────────────────────
         html += '<div style="margin-bottom: 20px;">';
-        html += '<h3 style="color: #B8A279;">Situación Legal</h3>';
-        html += '<table style="width: 100%; border-collapse: collapse;">';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Cédula Catastral</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.cedulaCatastral ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + this.escape(legal.cedCatNota || '') + '</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Registro de Propiedad</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.registroPropiedad ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + this.escape(legal.regProNota || '') + '</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Solvencia Municipal</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.solvenciaMunicipal ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + this.escape(legal.solMunNota || '') + '</td></tr>';
-        html += '<tr><td style="padding: 8px;"><strong>Comentario Adicional</strong></td><td colspan="2">' + (legal.comentarioLegal ? this.escape(legal.comLegNota || '') : 'No hay comentarios') + '</td></tr>';
+        html += '<h3 style="color: #B8A279; font-size: 14px;">5. Situación Legal</h3>';
+        html += '<table style="width: 100%; border-collapse: collapse; font-size: 12px;">';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee; width: 30%;"><strong>Cédula Catastral</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; width: 15%;">' + (legal.cedulaCatastral ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(legal.cedCatNota || '') + '</td></tr>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Registro de Propiedad</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.registroPropiedad ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(legal.regProNota || '') + '</td></tr>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Solvencia Municipal</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.solvenciaMunicipal ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(legal.solMunNota || '') + '</td></tr>';
+        html += '<tr><td style="padding: 8px;"><strong>Comentario Adicional</strong></td><td colspan="2">' + (legal.comentarioLegal ? escapeHtml(legal.comLegNota || '') : 'No hay comentarios') + '</td></tr>';
         html += '</table>';
         html += '</div>';
 
         // ─────────────────────────────────────────────────────────────
-        // FACTORES QUE INFLUYEN
+        // FRASE DORADA ANTES DE ANÁLISIS INTEGRAL
         // ─────────────────────────────────────────────────────────────
-        if (factores.length > 0) {
-            html += '<div style="margin-bottom: 20px;">';
-            html += '<h3 style="color: #B8A279;">¿Qué influye en el valor del precio de una propiedad actualmente?</h3>';
-            html += '<ul>';
-            factores.forEach(function(f) {
-                var icono = f.impacto === 'positivo' ? '✅' : '❌';
-                html += '<li>' + icono + ' ' + this.escape(f.name) + '</li>';
-            }.bind(this));
-            html += '</ul></div>';
-        }
+        html += '<div style="background: linear-gradient(135deg, #F5E6CA 0%, #E8D5B0 100%); border-left: 6px solid #B8A279; border-radius: 8px; padding: 16px 24px; margin: 24px 0; text-align: center;">';
+        html += '<p style="color: #8B6914; font-size: 16px; font-weight: 600; margin: 0;">';
+        html += '<i class="fas fa-quote-left" style="margin-right: 10px;"></i>';
+        html += 'De acuerdo a la información suministrada, ¿qué precio de salida al mercado le pondría usted a su propiedad?';
+        html += '<i class="fas fa-quote-right" style="margin-left: 10px;"></i>';
+        html += '</p>';
+        html += '</div>';
 
         // ─────────────────────────────────────────────────────────────
-        // ANÁLISIS INTEGRAL Y PRECIO - SIN DECIMALES
+        // ANÁLISIS INTEGRAL Y PRECIO
         // ─────────────────────────────────────────────────────────────
         html += '<div style="margin-bottom: 20px;">';
-        html += '<h3 style="color: #B8A279;">Análisis Integral</h3>';
-        html += '<table style="width: 100%; border-collapse: collapse;">';
-        html += '<tr style="background: #f5f5f5;"><td style="padding: 8px;"><strong>Síntesis de precio unitario Mts2</strong></td><td style="padding: 8px;"><strong>USD x m²</strong></td><td style="padding: 8px;"><strong>Precio (USD)</strong></td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Máximo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + (valorMax > 0 ? valorMax.toFixed(2) : '0,00') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPrice(precioMax) + '</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Mínimo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + (valorMin > 0 ? valorMin.toFixed(2) : '0,00') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPrice(precioMin) + '</td></tr>';
-        html += '<tr><td style="padding: 8px;">Precio Promedio de salida al mercado</td><td style="padding: 8px;">$ ' + (valorPromedio > 0 ? valorPromedio.toFixed(2) : '0,00') + '</td><td style="padding: 8px;">$ ' + formatPrice(precioOriginal) + '</td></tr>';
+        html += '<h3 style="color: #B8A279; font-size: 14px;">6. Análisis Integral</h3>';
+        html += '<table style="width: 100%; border-collapse: collapse; font-size: 12px;">';
+        html += '<tr style="background: #f5f5f5;">';
+        html += '<td style="padding: 8px;"><strong>Síntesis de precio unitario Mts2</strong></td>';
+        html += '<td style="padding: 8px;"><strong>USD x m²</strong></td>';
+        html += '<td style="padding: 8px;"><strong>Precio (USD)</strong></td>';
+        html += '</tr>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Máximo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPriceDec(valorMax) + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPrice(precioMax) + '</td></tr>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Mínimo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPriceDec(valorMin) + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPrice(precioMin) + '</td></tr>';
+        html += '<tr><td style="padding: 8px;">Precio Promedio de salida al mercado</td><td style="padding: 8px;">$ ' + formatPriceDec(valorPromedio) + '</td><td style="padding: 8px;">$ ' + formatPrice(precioOriginal) + '</td></tr>';
         html += '</table>';
 
+        // Precio ajustado por factores
+        var precioConAjuste = parseFloat(precioOriginal) * (1 + totalImpactoFactores / 100);
+        
         html += '<div style="background: #B8A279; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-top: 15px;">';
         html += '<strong>Rango de Precio para salir al mercado: entre $ ' + formatPrice(precioMin) + ' y $ ' + formatPrice(precioMax) + '</strong>';
-        html += '<br><span style="font-size: 14px;">Precio Sugerido: $ ' + formatPrice(precioOriginal) + ' (Ajuste: ' + ajustePrecio + '%)</span>';
-        html += '<br><span style="font-size: 12px;">Ponderación: ' + pesoOfertas + '% Ofertas / ' + pesoVentas + '% Ventas</span>';
+        html += '<br><span style="font-size: 12px;">Precio Sugerido: $ ' + formatPrice(precioOriginal) + ' (Ajuste: ' + ajustePrecio + '%)</span>';
+        html += '<br><span style="font-size: 11px;">Ponderación: ' + pesoOfertas + '% Ofertas / ' + pesoVentas + '% Ventas</span>';
+        if (totalImpactoFactores !== 0) {
+            var signoFactor = totalImpactoFactores >= 0 ? '+' : '';
+            html += '<br><span style="font-size: 11px;">Ajuste por factores: ' + signoFactor + totalImpactoFactores + '% → Precio con factores: $ ' + formatPrice(precioConAjuste) + '</span>';
+        }
         html += '</div>';
         html += '</div>';
 
@@ -369,13 +472,13 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         // ─────────────────────────────────────────────────────────────
         if (decisiones.length > 0) {
             html += '<div style="margin-bottom: 20px;">';
-            html += '<h3 style="color: #B8A279;">4. OPCIONES DE DECISIÓN</h3>';
+            html += '<h3 style="color: #B8A279; font-size: 14px;">7. OPCIONES DE DECISIÓN</h3>';
             decisiones.forEach(function(d, idx) {
-                html += '<div style="margin-bottom: 10px;">';
-                html += '<strong>' + (idx + 1) + '. ' + this.escape(d.name) + '</strong>';
-                if (d.descripcion) html += '<p style="margin-left: 20px; color: #666;">' + this.escape(d.descripcion) + '</p>';
+                html += '<div style="margin-bottom: 10px; font-size: 12px;">';
+                html += '<strong>' + (idx + 1) + '. ' + escapeHtml(d.name) + '</strong>';
+                if (d.descripcion) html += '<p style="margin-left: 20px; color: #666; font-size: 12px;">' + escapeHtml(d.descripcion) + '</p>';
                 html += '</div>';
-            }.bind(this));
+            });
             html += '</div>';
         }
 
@@ -384,89 +487,55 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         // ─────────────────────────────────────────────────────────────
         if (planes.length > 0 || canales.length > 0) {
             html += '<div style="margin-bottom: 20px;">';
-            html += '<h3 style="color: #B8A279;">5. PLAN DE TRABAJO</h3>';
+            html += '<h3 style="color: #B8A279; font-size: 14px;">8. PLAN DE TRABAJO</h3>';
             if (planes.length > 0) {
                 planes.forEach(function(p, idx) {
-                    html += '<div style="margin-bottom: 10px;">';
-                    html += '<strong>' + (idx + 1) + '. ' + this.escape(p.name) + '</strong>';
-                    if (p.descripcion) html += '<p style="margin-left: 20px; color: #666;">' + this.escape(p.descripcion) + '</p>';
+                    html += '<div style="margin-bottom: 10px; font-size: 12px;">';
+                    html += '<strong>' + (idx + 1) + '. ' + escapeHtml(p.name) + '</strong>';
+                    if (p.descripcion) html += '<p style="margin-left: 20px; color: #666; font-size: 12px;">' + escapeHtml(p.descripcion) + '</p>';
                     html += '</div>';
-                }.bind(this));
+                });
             }
             if (canales.length > 0) {
-                html += '<h4 style="color: #B8A279;">Medios publicitarios</h4>';
-                html += '<div style="display: flex; flex-wrap: wrap; gap: 10px;">';
+                html += '<h4 style="color: #B8A279; font-size: 13px; margin-top: 10px;">Medios publicitarios</h4>';
+                html += '<div style="display: flex; flex-wrap: wrap; gap: 8px;">';
                 canales.forEach(function(c) {
-                    html += '<span style="background: #e0e0e0; padding: 5px 10px; border-radius: 20px;">' + this.escape(c.name) + '</span>';
-                }.bind(this));
+                    html += '<span style="background: #e0e0e0; padding: 4px 10px; border-radius: 20px; font-size: 11px;">' + escapeHtml(c.name) + '</span>';
+                });
                 html += '</div>';
             }
             html += '</div>';
         }
 
-        html += '<div style="margin-top: 30px; padding: 15px; background: #f9f9f9; border-radius: 8px; text-align: center;">';
-        html += '<p style="margin-bottom: 10px;">Sr(a) ' + this.escape(ave.nombreCliente || 'Cliente') + ', nuestra mayor satisfacción es poner a su disposición la información necesaria y datos referenciales que le sirvan de apoyo para tomar la mejor decisión en la venta de su inmueble y poder contribuir en el bienestar de su familia, siempre a sus órdenes para brindarle el mejor servicio inmobiliario.</p>';
-        html += '</div>';
-
         // ─────────────────────────────────────────────────────────────
-        // DATOS DEL USUARIO / ASESOR
+        // FOOTER - Datos del asesor al final del reporte
         // ─────────────────────────────────────────────────────────────
-        html += '<div style="margin-top: 30px; padding: 15px; background: #f5f5f5; border-radius: 8px; text-align: center;">';
-        html += '<p><strong>Saludos cordiales,</strong></p>';
-        html += '<p><strong>' + this.escape(assignedUserName) + '</strong><br>';
-        html += 'Asesor Inmobiliario<br>';
-        if (ave.correoCliente) {
-            html += '<a href="mailto:' + this.escape(ave.correoCliente) + '" style="color: #B8A279;">' + this.escape(ave.correoCliente) + '</a><br>';
+        html += '<div style="margin-top: 40px; padding: 20px; background: #f5f5f5; border-radius: 8px; text-align: center; border-top: 3px solid #B8A279;">';
+        html += '<p style="margin-bottom: 15px; font-size: 12px; color: #666;">Sr(a) ' + escapeHtml(ave.nombreCliente || 'Cliente') + ', nuestra mayor satisfacción es poner a su disposición la información necesaria y datos referenciales que le sirvan de apoyo para tomar la mejor decisión en la venta de su inmueble y poder contribuir en el bienestar de su familia, siempre a sus órdenes para brindarle el mejor servicio inmobiliario.</p>';
+        html += '<hr style="margin: 15px auto; width: 50%; border-color: #ddd;">';
+        html += '<p style="font-size: 14px; margin-bottom: 10px;"><strong>Saludos cordiales,</strong></p>';
+        html += '<div style="display: flex; align-items: center; justify-content: center; gap: 15px; flex-wrap: wrap;">';
+        if (assignedUserImageId) {
+            html += '<img src="' + escapeHtml(getImageUrl(assignedUserImageId)) + '" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #B8A279;" onerror="this.style.display=\'none\'">';
+        } else {
+            html += '<div style="width: 60px; height: 60px; border-radius: 50%; background: #B8A279; display: flex; align-items: center; justify-content: center;"><i class="fas fa-user" style="color: white; font-size: 28px;"></i></div>';
         }
-        if (ave.telefonoCliente) {
-            html += this.escape(ave.telefonoCliente);
+        html += '<div style="text-align: left;">';
+        html += '<p style="margin: 0; font-weight: bold; font-size: 15px;">' + escapeHtml(assignedUserName) + '</p>';
+        html += '<p style="margin: 3px 0 0; font-size: 12px; color: #666;">Asesor Inmobiliario</p>';
+        if (assignedUserPhone) {
+            html += '<p style="margin: 3px 0 0; font-size: 12px; color: #666;">📞 ' + escapeHtml(assignedUserPhone) + '</p>';
         }
-        html += '</p>';
-        html += '<p style="font-size: 11px; color: #999; margin-top: 10px;">Fecha: ' + fechaActual + ' ' + horaActual + '</p>';
+        if (teamName) {
+            html += '<p style="margin: 3px 0 0; font-size: 12px; color: #666;">🏢 ' + escapeHtml(teamName) + '</p>';
+        }
+        html += '</div>';
+        html += '</div>';
+        html += '<p style="margin-top: 15px; font-size: 10px; color: #999; text-align: center;">Fecha de emisión: ' + fechaActual + ' ' + horaActual + '</p>';
         html += '</div>';
 
-        // Footer final
-        html += '<div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 11px;">';
-        html += '<p>Nuestra mayor satisfacción es poner a su disposición la información necesaria y datos referenciales que le sirvan de apoyo para tomar la mejor decisión.</p>';
         html += '</div>';
-
-        html += '</div>';
-
         return html;
-    };
-
-    PreviewManager.prototype.formatTipo = function(tipo) {
-        var map = {
-            habitacional: 'Residencial',
-            comercial: 'Comercial',
-            industrial: 'Industrial',
-            vacacional: 'Vacacional',
-            terreno: 'Terreno'
-        };
-        return map[tipo] || tipo || '-';
-    };
-
-    PreviewManager.prototype.formatSubtipo = function(subtipo) {
-        if (!subtipo) return '-';
-        var map = {
-            departamento: 'Apartamento',
-            'town-house': 'Town-House',
-            galpon: 'Galpón',
-            'casa-bote': 'Casa Bote',
-            'casa-duplex': 'Casa Duplex',
-            'fondo-de-comercio': 'Fondo de comercio',
-            'hotel-posada': 'Hotel/Posada',
-            'tiempo-compartido': 'Tiempo compartido',
-            'inmueble-productivo': 'Inmueble productivo'
-        };
-        return map[subtipo] || subtipo.charAt(0).toUpperCase() + subtipo.slice(1).replace(/-/g, ' ');
-    };
-
-    PreviewManager.prototype.escape = function(text) {
-        if (!text) return '';
-        return String(text).replace(/[&<>"']/g, function(m) {
-            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
-        });
     };
 
     return PreviewManager;
