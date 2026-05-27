@@ -21,13 +21,18 @@ define('ave:views/ave-principal/modules/precio', [], function () {
 
         console.log('Peso Ofertas:', pesoOfertas);
         console.log('Ajuste Precio:', ave.ajustePrecio || 0);
+        console.log('Precio Original (base):', ave.precioOriginal || 0);
 
         this.view.$el.find('#pesoOfertas').val(pesoOfertas);
         this.view.$el.find('#pesoVentas').val(100 - pesoOfertas);
         this.view.$el.find('#ajustePrecio').val(ave.ajustePrecio || 0);
 
         this.initEventos();
-        this.actualizarRango(ave.ajustePrecio || 0, ave.precioSugerido || 0);
+        
+        // Pasar el precioOriginal como base para el rango
+        var precioBase = ave.precioOriginal || 0;
+        var ajuste = ave.ajustePrecio || 0;
+        this.actualizarRango(ajuste, precioBase);
     };
 
     PrecioManager.prototype.initEventos = function () {
@@ -85,7 +90,11 @@ define('ave:views/ave-principal/modules/precio', [], function () {
                     self.view.$el.find('#precioOriginal').val(d.precioOriginal);
                     
                     self.view.$el.find('#pesoVentas').val(100 - (d.pesoOfertas || pesoOfertas));
-                    self.actualizarRango(d.ajustePrecio, d.precioSugerido);
+                    
+                    // Usar precioOriginal como base para el rango
+                    var precioBase = d.precioOriginal || 0;
+                    var nuevoAjuste = d.ajustePrecio || ajuste;
+                    self.actualizarRango(nuevoAjuste, precioBase);
                 } else {
                     console.error('Error en recalcularPrecios:', response.error);
                     Espo.Ui.error(response.error || 'Error al recalcular precios');
@@ -98,20 +107,24 @@ define('ave:views/ave-principal/modules/precio', [], function () {
         }, 400);
     };
 
-    PrecioManager.prototype.actualizarRango = function (ajuste, precioSugerido) {
-        ajuste        = parseFloat(ajuste)        || 0;
-        precioSugerido = parseFloat(precioSugerido) || 0;
+    PrecioManager.prototype.actualizarRango = function (ajuste, precioBase) {
+        ajuste = parseFloat(ajuste) || 0;
+        precioBase = parseFloat(precioBase) || 0;
 
-        console.log('actualizarRango - ajuste:', ajuste, 'precioSugerido:', precioSugerido);
+        console.log('actualizarRango - ajuste:', ajuste, 'precioBase:', precioBase);
 
-        if (precioSugerido > 0) {
-            var min = Math.round(precioSugerido * (1 - ajuste / 100));
-            var max = Math.round(precioSugerido * (1 + ajuste / 100));
+        if (precioBase > 0) {
+            // El rango se calcula aplicando el ajuste ALREDEDOR del precio base
+            // Ejemplo: precioBase = 90678, ajuste = 10%
+            // Mínimo = precioBase * (1 - ajuste/100) = 90678 * 0.9 = 81610
+            // Máximo = precioBase * (1 + ajuste/100) = 90678 * 1.1 = 99746
+            var min = Math.round(precioBase * (1 - ajuste / 100));
+            var max = Math.round(precioBase * (1 + ajuste / 100));
 
             var fmt = function (n) {
                 return n.toLocaleString('es-VE', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
                 });
             };
 
@@ -119,9 +132,9 @@ define('ave:views/ave-principal/modules/precio', [], function () {
             this.view.$el.find('#rangoPrecioMinDisplay').text('$ ' + fmt(min));
             this.view.$el.find('#rangoPrecioMaxDisplay').text('$ ' + fmt(max));
         } else {
-            console.warn('precioSugerido es 0 o inválido');
-            this.view.$el.find('#rangoPrecioMinDisplay').text('$ 0.00');
-            this.view.$el.find('#rangoPrecioMaxDisplay').text('$ 0.00');
+            console.warn('precioBase es 0 o inválido');
+            this.view.$el.find('#rangoPrecioMinDisplay').text('$ 0');
+            this.view.$el.find('#rangoPrecioMaxDisplay').text('$ 0');
         }
     };
 

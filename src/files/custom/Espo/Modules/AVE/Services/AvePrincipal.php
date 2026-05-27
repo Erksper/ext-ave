@@ -773,9 +773,6 @@ class AvePrincipal extends RecordService
         $GLOBALS['log']->info('=== RECALCULAR PRECIOS PARA ENTITY ===');
         $GLOBALS['log']->info('AVE ID: ' . $avePrincipalId);
         
-        // Llamar al método de debugging
-        $this->debugReferencias($avePrincipalId);
-        
         // Obtener referencias que se usan en cálculo
         $referencias = $em->getRDBRepository('AveInmuebleReferencia')
             ->where([
@@ -819,15 +816,15 @@ class AvePrincipal extends RecordService
             }
         }
         
-        // Calcular precio M2 promedio por tipo
+        // Calcular precio M2 promedio por tipo (suma precios / suma areas)
         $precioM2Ofertas = ($sumaAreasOfertas > 0) ? $sumaPreciosOfertas / $sumaAreasOfertas : 0;
         $precioM2Ventas = ($sumaAreasVentas > 0) ? $sumaPreciosVentas / $sumaAreasVentas : 0;
         
         $GLOBALS['log']->info('Resultados intermedios:');
-        $GLOBALS['log']->info('  Precio M2 Ofertas: ' . $precioM2Ofertas . ' (SumaPrecios: ' . $sumaPreciosOfertas . ' / SumaAreas: ' . $sumaAreasOfertas . ')');
-        $GLOBALS['log']->info('  Precio M2 Ventas: ' . $precioM2Ventas . ' (SumaPrecios: ' . $sumaPreciosVentas . ' / SumaAreas: ' . $sumaAreasVentas . ')');
+        $GLOBALS['log']->info('  Precio M2 Ofertas: ' . $precioM2Ofertas);
+        $GLOBALS['log']->info('  Precio M2 Ventas: ' . $precioM2Ventas);
         
-        // Obtener pesos
+        // Obtener pesos (default 50-50)
         $pesoOfertas = $entity->get('pesoOfertas');
         if ($pesoOfertas === null || $pesoOfertas === '') {
             $pesoOfertas = 50;
@@ -846,13 +843,13 @@ class AvePrincipal extends RecordService
         
         $GLOBALS['log']->info('Precio M2 Ponderado: ' . $precioM2Ponderado);
         
-        // Obtener valores máximos y mínimos
+        // Obtener valores máximos y mínimos de M2
         $valorMaxM2 = !empty($todosLosPreciosM2) ? max($todosLosPreciosM2) : 0;
         $valorMinM2 = !empty($todosLosPreciosM2) ? min($todosLosPreciosM2) : 0;
         
         $GLOBALS['log']->info('Valores M2 - Max: ' . $valorMaxM2 . ', Min: ' . $valorMinM2);
         
-        // Obtener área del inmueble
+        // Obtener área del inmueble evaluado
         $areaInmueble = 0;
         if ($entity->get('aveInmuebleId')) {
             $inmueble = $em->getEntity('AveInmueble', $entity->get('aveInmuebleId'));
@@ -863,29 +860,33 @@ class AvePrincipal extends RecordService
         
         $GLOBALS['log']->info('Área del inmueble evaluado: ' . $areaInmueble . ' m²');
         
-        // Calcular precios
+        // Calcular precios base (sin ajuste)
         $precioMaximo = $valorMaxM2 * $areaInmueble;
         $precioMinimo = $valorMinM2 * $areaInmueble;
-        $precioVenta = $precioM2Ponderado * $areaInmueble;
+        $precioVentaBase = $precioM2Ponderado * $areaInmueble;  // Este es el precioOriginal
         
-        $GLOBALS['log']->info('Precios calculados:');
+        $GLOBALS['log']->info('Precios base calculados:');
         $GLOBALS['log']->info('  Precio Máximo: ' . $precioMaximo);
         $GLOBALS['log']->info('  Precio Mínimo: ' . $precioMinimo);
-        $GLOBALS['log']->info('  Precio Venta: ' . $precioVenta);
+        $GLOBALS['log']->info('  Precio Venta Base (Original): ' . $precioVentaBase);
         
-        // Aplicar ajuste
+        // Aplicar ajuste de precio SOLO para el precio sugerido
         $ajuste = $entity->get('ajustePrecio');
         if ($ajuste === null || $ajuste === '') {
             $ajuste = 0;
             $entity->set('ajustePrecio', 0);
         }
         
-        $precioAjustado = $precioVenta * (1 + $ajuste / 100);
-        $rangoMin = $precioAjustado * (1 - $ajuste / 100);
-        $rangoMax = $precioAjustado * (1 + $ajuste / 100);
+        // El precio sugerido es el precio base con el ajuste aplicado
+        $precioSugerido = $precioVentaBase * (1 + $ajuste / 100);
+        
+        // El rango se calcula a partir del precio sugerido (o del precio base, según prefieras)
+        // Usamos el precio sugerido como centro del rango
+        $rangoMin = $precioSugerido * (1 - $ajuste / 100);
+        $rangoMax = $precioSugerido * (1 + $ajuste / 100);
         
         $GLOBALS['log']->info('Con ajuste del ' . $ajuste . '%:');
-        $GLOBALS['log']->info('  Precio Ajustado: ' . $precioAjustado);
+        $GLOBALS['log']->info('  Precio Sugerido: ' . $precioSugerido);
         $GLOBALS['log']->info('  Rango: ' . $rangoMin . ' - ' . $rangoMax);
         
         // Guardar valores
@@ -894,8 +895,8 @@ class AvePrincipal extends RecordService
         $entity->set('valorPromedio', round($precioM2Ponderado, 2));
         $entity->set('precioMax', round($precioMaximo, 2));
         $entity->set('precioMin', round($precioMinimo, 2));
-        $entity->set('precioOriginal', round($precioVenta, 2));
-        $entity->set('precioSugerido', round($precioAjustado, 2));
+        $entity->set('precioOriginal', round($precioVentaBase, 2));
+        $entity->set('precioSugerido', round($precioSugerido, 2));
         $entity->set('rangoPrecioMin', round($rangoMin, 2));
         $entity->set('rangoPrecioMax', round($rangoMax, 2));
         

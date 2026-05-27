@@ -404,7 +404,7 @@
                                 <input type="number" id="precioMin" class="ave-form-control" step="0.01" readonly disabled>
                             </div>
                             <div class="ave-precio-card">
-                                <div class="ave-precio-card-label">Precio de Venta Sugerido (USD)</div>
+                                <div class="ave-precio-card-label">Precio de Venta de Salida al Mercado (USD)</div>
                                 <input type="number" id="precioOriginal" class="ave-form-control" step="0.01" readonly disabled>
                             </div>
                         </div>
