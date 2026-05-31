@@ -11,16 +11,40 @@ class AvePrincipal extends RecordBase
 {
     public function getActionGetLista(Request $request, Response $response): array
     {
-        $pagina    = (int)($request->getQueryParam('pagina')         ?? 1);
-        $porPagina = (int)($request->getQueryParam('porPagina')      ?? 20);
-        $numero    = $request->getQueryParam('numero')                ?? '';
-        $cliente   = $request->getQueryParam('cliente')               ?? '';
-        $identi    = $request->getQueryParam('identificacion')        ?? '';
-        $asesor    = $request->getQueryParam('asesor')                ?? '';
-        $status    = $request->getQueryParam('status')                ?? '';
+        try {
+            $pagina    = (int)($request->getQueryParam('pagina')         ?? 1);
+            $porPagina = (int)($request->getQueryParam('porPagina')      ?? 20);
+            $asesor    = $request->getQueryParam('asesor')                ?? '';
+            $status    = $request->getQueryParam('status')                ?? '';
+            $claId     = $request->getQueryParam('claId')                 ?? '';
+            $oficinaId = $request->getQueryParam('oficinaId')             ?? '';
+            $userId    = $request->getQueryParam('userId')                ?? '';
 
-        return $this->getServiceFactory()->create('AvePrincipal')
-            ->getLista($pagina, $porPagina, $numero, $cliente, $identi, $asesor, $status);
+            $GLOBALS['log']->info('getActionGetLista llamado con parámetros: ' . json_encode([
+                'pagina' => $pagina,
+                'porPagina' => $porPagina,
+                'asesor' => $asesor,
+                'status' => $status,
+                'claId' => $claId,
+                'oficinaId' => $oficinaId,
+                'userId' => $userId
+            ]));
+
+            $result = $this->getServiceFactory()->create('AvePrincipal')
+                ->getLista($pagina, $porPagina, $asesor, $status, $claId, $oficinaId, $userId);
+            
+            $GLOBALS['log']->info('getActionGetLista resultado: ' . json_encode($result));
+            
+            return $result;
+            
+        } catch (\Exception $e) {
+            $GLOBALS['log']->error('Error en getActionGetLista: ' . $e->getMessage());
+            $GLOBALS['log']->error($e->getTraceAsString());
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
     }
 
     public function getActionGetOrCreate(Request $request, Response $response): array
@@ -87,6 +111,116 @@ class AvePrincipal extends RecordBase
     public function postActionCrearFactor(Request $request, Response $response): array
     {
         return $this->getServiceFactory()->create('AvePrincipal')->crearFactor($request->getParsedBody());
+    }
+
+    public function getActionGetOficinasByCLA(Request $request, Response $response): array
+    {
+        $claId = $request->getQueryParam('claId');
+        if (!$claId) {
+            return ['success' => false, 'error' => 'claId es requerido'];
+        }
+
+        $em  = $this->getContainer()->get('entityManager');
+        $pdo = $em->getPDO();
+
+        try {
+            $stmt = $pdo->prepare("
+                SELECT DISTINCT entity_id FROM entity_team
+                WHERE team_id = :claId AND entity_type = 'AvePrincipal' AND deleted = 0
+                LIMIT 5000
+            ");
+            $stmt->execute(['claId' => $claId]);
+            $aveIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+
+            if (empty($aveIds)) {
+                return ['success' => true, 'data' => []];
+            }
+
+            $oficinasMap = [];
+            foreach ($aveIds as $aid) {
+                $stmt2 = $pdo->prepare("
+                    SELECT DISTINCT et.team_id, t.name
+                    FROM entity_team et
+                    INNER JOIN team t ON et.team_id = t.id
+                    WHERE et.entity_id = :aveId
+                    AND et.entity_type = 'AvePrincipal'
+                    AND et.deleted = 0
+                    AND t.id NOT LIKE 'CLA%'
+                    AND t.id != '1'
+                ");
+                $stmt2->execute(['aveId' => $aid]);
+                $rows = $stmt2->fetchAll(\PDO::FETCH_ASSOC);
+                foreach ($rows as $row) {
+                    $tid = $row['team_id'];
+                    $oficinasMap[$tid] = $row['name'];
+                }
+            }
+
+            $oficinas = [];
+            foreach ($oficinasMap as $id => $name) {
+                $oficinas[] = ['id' => $id, 'name' => $name];
+            }
+            usort($oficinas, fn($a, $b) => strcmp($a['name'], $b['name']));
+
+            return ['success' => true, 'data' => $oficinas];
+
+        } catch (\Exception $e) {
+            $GLOBALS['log']->error('AvePrincipal::getOficinasByCLA - ' . $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function getActionGetAsesoresByOficina(Request $request, Response $response): array
+    {
+        $oficinaId = $request->getQueryParam('oficinaId');
+        if (!$oficinaId) {
+            return ['success' => false, 'error' => 'oficinaId es requerido'];
+        }
+
+        $em  = $this->getContainer()->get('entityManager');
+        $pdo = $em->getPDO();
+
+        try {
+            $stmt = $pdo->prepare("
+                SELECT DISTINCT entity_id FROM entity_team
+                WHERE team_id = :oficinaId AND entity_type = 'AvePrincipal' AND deleted = 0
+                LIMIT 5000
+            ");
+            $stmt->execute(['oficinaId' => $oficinaId]);
+            $aveIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+
+            if (empty($aveIds)) {
+                return ['success' => true, 'data' => []];
+            }
+
+            $asesoresMap = [];
+            foreach ($aveIds as $aid) {
+                $stmt2 = $pdo->prepare("
+                    SELECT assigned_user FROM ave_principal WHERE id = :aveId AND deleted = 0
+                ");
+                $stmt2->execute(['aveId' => $aid]);
+                $row = $stmt2->fetch(\PDO::FETCH_ASSOC);
+                if ($row && !empty($row['assigned_user']) && !isset($asesoresMap[$row['assigned_user']])) {
+                    $userId = $row['assigned_user'];
+                    $user = $em->getEntityById('User', $userId);
+                    if ($user && !$user->get('deleted') && $user->get('isActive')) {
+                        $asesoresMap[$userId] = $user->get('name');
+                    }
+                }
+            }
+
+            $asesores = [];
+            foreach ($asesoresMap as $id => $name) {
+                $asesores[] = ['id' => $id, 'name' => $name];
+            }
+            usort($asesores, fn($a, $b) => strcmp($a['name'], $b['name']));
+
+            return ['success' => true, 'data' => $asesores];
+
+        } catch (\Exception $e) {
+            $GLOBALS['log']->error('AvePrincipal::getAsesoresByOficina - ' . $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
     }
 
     public function postActionUploadFoto(Request $request, Response $response): array
@@ -234,6 +368,115 @@ class AvePrincipal extends RecordBase
             throw new BadRequest($e->getMessage());
         }
     }
+
+    public function getActionGetUserInfo(Request $request): array
+    {
+        $userId = $request->getQueryParam('userId');
+        if (!$userId) {
+            return ['success' => false, 'error' => 'userId es requerido'];
+        }
+
+        $em   = $this->getContainer()->get('entityManager');
+        $user = $em->getEntityById('User', $userId);
+        if (!$user) {
+            return ['success' => false, 'error' => 'Usuario no encontrado'];
+        }
+
+        $teamIds = []; 
+        $claUsuario = null; 
+        $claNombre = null;
+        $oficinaUsuario = null;
+        $oficinaNombre = null;
+        
+        $teams = $em->getRelation($user, 'teams')->find();
+        if ($teams) {
+            foreach ($teams as $team) {
+                $id = $team->getId();
+                $name = $team->get('name');
+                $teamIds[] = $id;
+                
+                if (strpos($id, 'CLA') === 0) {
+                    $claUsuario = $id;
+                    $claNombre = $name;
+                } else {
+                    if (!$oficinaUsuario) {
+                        $oficinaUsuario = $id;
+                        $oficinaNombre = $name;
+                    }
+                }
+            }
+        }
+        
+        if (!$oficinaUsuario) {
+            $dtId = $user->get('defaultTeamId');
+            if ($dtId && strpos($dtId, 'CLA') !== 0) {
+                $oficinaUsuario = $dtId;
+                $teamDefault = $em->getEntityById('Team', $dtId);
+                $oficinaNombre = $teamDefault ? $teamDefault->get('name') : null;
+            }
+        }
+
+        $esCasaNacional = false;
+        $esGerente = false;
+        $esDirector = false;
+        $esCoordinador = false;
+        
+        $roles = $em->getRelation($user, 'roles')->find();
+        if ($roles) {
+            foreach ($roles as $role) {
+                $n = strtolower($role->get('name') ?? '');
+                if (str_contains($n, 'casa nacional') || str_contains($n, 'casanacional')) {
+                    $esCasaNacional = true;
+                }
+                if (!$esCasaNacional) {
+                    if (str_contains($n, 'gerente')) $esGerente = true;
+                    if (str_contains($n, 'director')) $esDirector = true;
+                    if (str_contains($n, 'coordinador')) $esCoordinador = true;
+                }
+            }
+        }
+
+        $esAdminType = $user->get('type') === 'admin';
+        $tienePoderCasaNacional = $esAdminType || $esCasaNacional;
+        $tieneRolesGestion = !$tienePoderCasaNacional && ($esGerente || $esDirector || $esCoordinador);
+        $esAsesorPuro = $user->get('type') === 'regular' && !$tieneRolesGestion && !$tienePoderCasaNacional;
+
+        // Obtener CLAs disponibles para casa nacional
+        $clasDisponibles = [];
+        if ($tienePoderCasaNacional) {
+            $clas = $em->getRepository('Team')
+                ->select(['id', 'name'])
+                ->where([
+                    'deleted' => false,
+                    'id*' => 'CLA%'
+                ])
+                ->find();
+            foreach ($clas as $cla) {
+                $clasDisponibles[] = ['id' => $cla->getId(), 'name' => $cla->get('name')];
+            }
+            usort($clasDisponibles, fn($a, $b) => strcmp($a['name'], $b['name']));
+        }
+
+        return ['success' => true, 'data' => [
+            'usuarioId'       => $userId,
+            'userType'        => $user->get('type'),
+            'userName'        => $user->get('name'),
+            'esCasaNacional'  => $tienePoderCasaNacional,
+            'esGerente'       => $esGerente,
+            'esDirector'      => $esDirector,
+            'esCoordinador'   => $esCoordinador,
+            'tieneRolesGestion' => $tieneRolesGestion,
+            'esAsesor'        => $esAsesorPuro,
+            'claUsuario'      => $claUsuario,
+            'claNombre'       => $claNombre,
+            'oficinaUsuario'  => $oficinaUsuario,
+            'oficinaNombre'   => $oficinaNombre,
+            'teamIds'         => $teamIds,
+            'clasDisponibles' => $clasDisponibles
+        ]];
+    }
+
+
 
     protected function getEntityManager(): \Espo\ORM\EntityManager
     {

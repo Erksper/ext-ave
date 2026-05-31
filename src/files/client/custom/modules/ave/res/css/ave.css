@@ -990,3 +990,23 @@
         padding: 2px 6px;
     }
 }
+
+.ave-btn-warning {
+    background: #f39c12;
+    color: white;
+}
+.ave-btn-warning:hover {
+    background: #e67e22;
+    color: white;
+    transform: translateY(-1px);
+}
+
+.ave-btn-warning {
+    background: #f39c12;
+    color: white;
+}
+.ave-btn-warning:hover {
+    background: #e67e22;
+    color: white;
+    transform: translateY(-1px);
+}

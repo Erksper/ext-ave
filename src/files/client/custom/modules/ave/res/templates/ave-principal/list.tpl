@@ -25,21 +25,23 @@
         <div class="ave-card-header"><i class="fas fa-filter"></i> Filtros</div>
         <div class="ave-card-body">
             <div class="ave-filtros-grid">
-                <div>
-                    <label class="ave-form-label">N° AVE</label>
-                    <input type="text" id="filtro-numero" class="ave-form-control" placeholder="Buscar por número...">
+                <div id="filtro-cla-group" style="display:none;">
+                    <label class="ave-form-label">CLA</label>
+                    <select id="filtro-cla" class="ave-form-control">
+                        <option value="">Todos los CLAs</option>
+                    </select>
                 </div>
-                <div>
-                    <label class="ave-form-label">Cliente</label>
-                    <input type="text" id="filtro-cliente" class="ave-form-control" placeholder="Nombre del cliente...">
+                <div id="filtro-oficina-group" style="display:none;">
+                    <label class="ave-form-label">Oficina</label>
+                    <select id="filtro-oficina" class="ave-form-control" disabled>
+                        <option value="">Seleccione un CLA primero</option>
+                    </select>
                 </div>
-                <div>
-                    <label class="ave-form-label">Identificación</label>
-                    <input type="text" id="filtro-identificacion" class="ave-form-control" placeholder="CI / RIF...">
-                </div>
-                <div>
+                <div id="filtro-asesor-group" style="display:none;">
                     <label class="ave-form-label">Asesor</label>
-                    <input type="text" id="filtro-asesor" class="ave-form-control" placeholder="Nombre del asesor...">
+                    <select id="filtro-asesor" class="ave-form-control" disabled>
+                        <option value="">Seleccione una oficina primero</option>
+                    </select>
                 </div>
                 <div>
                     <label class="ave-form-label">Estado</label>
@@ -47,7 +49,6 @@
                         <option value="">Todos</option>
                         <option value="elaboracion">En Elaboración</option>
                         <option value="impresion">Listo para Imprimir</option>
-                        <option value="aprobado">Aprobado</option>
                     </select>
                 </div>
             </div>
@@ -64,10 +65,10 @@
 
     <!-- Leyenda de estados -->
     <div class="ave-lista-leyenda">
-    <span class="ave-leyenda-titulo"><i class="fas fa-info-circle"></i> <strong>Estados:</strong></span>
-    <span class="ave-leyenda-badge ave-leyenda-elaboracion">En Elaboración</span>
-    <span class="ave-leyenda-badge ave-leyenda-impresion">Listo para Imprimir</span>
-</div>
+        <span class="ave-leyenda-titulo"><i class="fas fa-info-circle"></i> <strong>Estados:</strong></span>
+        <span class="ave-leyenda-badge ave-leyenda-elaboracion">En Elaboración</span>
+        <span class="ave-leyenda-badge ave-leyenda-impresion">Listo para Imprimir</span>
+    </div>
 
     <!-- Loading -->
     <div id="ave-list-loading" class="ave-loading" style="display:none;">
@@ -95,7 +96,7 @@
                         <th>Asesor</th>
                         <th>Fecha</th>
                         <th style="width:120px; text-align:center;">Estado</th>
-                        <th style="width:220px; text-align:center;">Acciones</th>
+                        <th style="width:280px; text-align:center;">Acciones</th>
                     </tr>
                 </thead>
                 <tbody id="ave-list-tbody"></tbody>

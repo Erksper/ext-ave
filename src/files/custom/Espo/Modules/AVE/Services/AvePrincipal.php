@@ -67,50 +67,282 @@ class AvePrincipal extends RecordService
     // ──────────────────────────────────────────────────────────────
     public function getLista(
         int $pagina, int $porPagina,
-        string $numero, string $cliente,
-        string $identificacion, string $asesor,
-        string $status = ''
+        string $asesor = '',
+        string $status = '',
+        ?string $claId = null,
+        ?string $oficinaId = null,
+        ?string $userId = null
     ): array {
-        $GLOBALS['log']->info('=== getLista ===');
-        $GLOBALS['log']->info('Filtro status: ' . ($status ?: 'NINGUNO'));
+        $GLOBALS['log']->info('=== getLista SQL CORREGIDA ===');
         
-        $repo = $this->entityManager->getRDBRepository('AvePrincipal');
+        $em = $this->entityManager;
+        $pdo = $em->getPDO();
         
-        $query = $repo->where([]);
+        $offset = ($pagina - 1) * $porPagina;
         
-        if ($status) {
-            $query->where(['status' => $status]);
-            $GLOBALS['log']->info('Filtrando por status: ' . $status);
+        // Construir WHERE clause
+        $where = ["deleted = 0"];
+        $params = [];
+        
+        if (!empty($asesor)) {
+            $where[] = "assigned_user_id = :asesor";
+            $params[':asesor'] = $asesor;
         }
         
-        $items = $query->limit(0, 100)->find();
+        if (!empty($status)) {
+            $where[] = "status = :status";
+            $params[':status'] = $status;
+        }
         
-        $GLOBALS['log']->info('Registros encontrados: ' . $items->count());
+        $whereClause = implode(" AND ", $where);
+        
+        // Consulta para obtener los registros
+        $sql = "SELECT 
+                    id, 
+                    numero_ave, 
+                    nombre_cliente, 
+                    identificacion_cliente, 
+                    tipo_identificacion,
+                    assigned_user_id,
+                    created_at,
+                    status,
+                    ave_inmueble_id
+                FROM ave_principal 
+                WHERE $whereClause
+                ORDER BY created_at DESC 
+                LIMIT $porPagina OFFSET $offset";
+        
+        $stmt = $pdo->prepare($sql);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue($key, $value);
+        }
+        $stmt->execute();
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        
+        // Consulta para el total
+        $countSql = "SELECT COUNT(id) as total FROM ave_principal WHERE $whereClause";
+        $stmtCount = $pdo->prepare($countSql);
+        foreach ($params as $key => $value) {
+            $stmtCount->bindValue($key, $value);
+        }
+        $stmtCount->execute();
+        $total = (int)($stmtCount->fetch(\PDO::FETCH_ASSOC)['total'] ?? 0);
+        
+        // Obtener nombres de usuarios - usando user_name
+        $userNames = [];
+        $userIds = array_unique(array_filter(array_column($rows, 'assigned_user_id')));
+        
+        if (!empty($userIds)) {
+            $placeholders = implode(',', array_fill(0, count($userIds), '?'));
+            // CORREGIDO: usar user_name en lugar de name
+            $stmtUser = $pdo->prepare("SELECT id, user_name FROM user WHERE id IN ($placeholders)");
+            $stmtUser->execute(array_values($userIds));
+            $users = $stmtUser->fetchAll(\PDO::FETCH_ASSOC);
+            foreach ($users as $user) {
+                $userNames[$user['id']] = $user['user_name'];
+            }
+        }
         
         $list = [];
-        foreach ($items as $item) {
-            $list[] = [
-                'id'                    => $item->getId(),
-                'numeroAve'             => $item->get('numeroAve'),
-                'nombreCliente'         => $item->get('nombreCliente'),
-                'identificacionCliente' => $item->get('identificacionCliente'),
-                'tipoIdentificacion'    => $item->get('tipoIdentificacion'),
-                'assignedUserName'      => $item->get('assignedUserName'),
-                'aveInmuebleName'       => $item->get('aveInmuebleName'),
-                'createdAt'             => $item->get('createdAt'),
-                'status'                => $item->get('status'),
-            ];
-            $GLOBALS['log']->info('Registro: ' . $item->get('numeroAve') . ' - Status: ' . $item->get('status'));
+        foreach ($rows as $row) {
+            $inmuebleData = [];
+            if (!empty($row['ave_inmueble_id'])) {
+                $inmueble = $em->getEntity('AveInmueble', $row['ave_inmueble_id']);
+                if ($inmueble) {
+                    $inmuebleData = [
+                        'aveInmuebleName' => $inmueble->get('nombrePropietario') ?? '-',
+                        'aveInmuebleUrbanizacion' => $inmueble->get('urbanizacion'),
+                        'aveInmuebleCiudad' => $inmueble->get('ciudad'),
+                        'aveInmuebleEstado' => $inmueble->get('estado'),
+                    ];
+                }
+            }
+            
+            $list[] = array_merge([
+                'id'                    => $row['id'],
+                'numeroAve'             => $row['numero_ave'] ?? '-',
+                'nombreCliente'         => $row['nombre_cliente'] ?? '-',
+                'identificacionCliente' => $row['identificacion_cliente'] ?? '-',
+                'tipoIdentificacion'    => $row['tipo_identificacion'] ?? '',
+                'assignedUserName'      => $userNames[$row['assigned_user_id']] ?? '-',
+                'createdAt'             => $row['created_at'] ?? null,
+                'status'                => $row['status'] ?? 'elaboracion',
+            ], $inmuebleData);
         }
         
         return [
             'success' => true,
             'data' => [
                 'list' => $list,
-                'total' => count($list),
-                'totalPaginas' => 1
+                'total' => $total,
+                'totalPaginas' => (int)ceil($total / $porPagina)
             ]
         ];
+    }
+
+    private function getUserInfoData(string $userId): ?array
+    {
+        $em = $this->entityManager;
+        $user = $em->getEntityById('User', $userId);
+        if (!$user) return null;
+
+        $oficinaUsuario = null;
+        $teams = $em->getRelation($user, 'teams')->find();
+        if ($teams) {
+            foreach ($teams as $team) {
+                $id = $team->getId();
+                if (strpos($id, 'CLA') !== 0) {
+                    $oficinaUsuario = $oficinaUsuario ?? $id;
+                }
+            }
+        }
+        if (!$oficinaUsuario) {
+            $dtId = $user->get('defaultTeamId');
+            if ($dtId && strpos($dtId, 'CLA') !== 0) $oficinaUsuario = $dtId;
+        }
+
+        $esCasaNacional = false;
+        $esGerente = false;
+        $esDirector = false;
+        $esCoordinador = false;
+        
+        $roles = $em->getRelation($user, 'roles')->find();
+        if ($roles) {
+            foreach ($roles as $role) {
+                $n = strtolower($role->get('name') ?? '');
+                if (str_contains($n, 'casa nacional') || str_contains($n, 'casanacional')) {
+                    $esCasaNacional = true;
+                }
+                if (!$esCasaNacional) {
+                    if (str_contains($n, 'gerente')) $esGerente = true;
+                    if (str_contains($n, 'director')) $esDirector = true;
+                    if (str_contains($n, 'coordinador')) $esCoordinador = true;
+                }
+            }
+        }
+
+        $esAdminType = $user->get('type') === 'admin';
+        $tienePoderCasaNacional = $esAdminType || $esCasaNacional;
+        $tieneRolesGestion = !$tienePoderCasaNacional && ($esGerente || $esDirector || $esCoordinador);
+        $esAsesorPuro = $user->get('type') === 'regular' && !$tieneRolesGestion && !$tienePoderCasaNacional;
+
+        return [
+            'esCasaNacional' => $tienePoderCasaNacional,
+            'tieneRolesGestion' => $tieneRolesGestion,
+            'esAsesor' => $esAsesorPuro,
+            'oficinaUsuario' => $oficinaUsuario,
+        ];
+    }
+
+    public function getActionGetOficinasByCLA(Request $request, Response $response): array
+    {
+        $claId = $request->getQueryParam('claId');
+        if (!$claId) {
+            return ['success' => false, 'error' => 'claId es requerido'];
+        }
+
+        $em  = $this->getContainer()->get('entityManager');
+        $pdo = $em->getPDO();
+
+        try {
+            // Obtener AVE que pertenecen al CLA
+            $stmt = $pdo->prepare("
+                SELECT DISTINCT entity_id FROM entity_team
+                WHERE team_id = :claId AND entity_type = 'AvePrincipal' AND deleted = 0
+            ");
+            $stmt->execute(['claId' => $claId]);
+            $aveIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+
+            if (empty($aveIds)) {
+                return ['success' => true, 'data' => []];
+            }
+
+            // Buscar oficinas (teams que no son CLA) asociadas a esos AVE
+            $placeholders = implode(',', array_fill(0, count($aveIds), '?'));
+            $stmt2 = $pdo->prepare("
+                SELECT DISTINCT et.team_id, t.name
+                FROM entity_team et
+                INNER JOIN team t ON et.team_id = t.id
+                WHERE et.entity_id IN ($placeholders)
+                AND et.entity_type = 'AvePrincipal'
+                AND et.deleted = 0
+                AND t.id NOT LIKE 'CLA%'
+                AND t.id != '1'
+                ORDER BY t.name ASC
+            ");
+            $stmt2->execute($aveIds);
+            $rows = $stmt2->fetchAll(\PDO::FETCH_ASSOC);
+
+            $oficinas = [];
+            foreach ($rows as $row) {
+                $oficinas[] = ['id' => $row['team_id'], 'name' => $row['name']];
+            }
+
+            return ['success' => true, 'data' => $oficinas];
+
+        } catch (\Exception $e) {
+            $GLOBALS['log']->error('AvePrincipal::getOficinasByCLA - ' . $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function getActionGetAsesoresByOficina(Request $request, Response $response): array
+    {
+        $oficinaId = $request->getQueryParam('oficinaId');
+        if (!$oficinaId) {
+            return ['success' => false, 'error' => 'oficinaId es requerido'];
+        }
+
+        $em  = $this->getContainer()->get('entityManager');
+        $pdo = $em->getPDO();
+
+        try {
+            // Obtener AVE que pertenecen a la oficina
+            $stmt = $pdo->prepare("
+                SELECT DISTINCT entity_id FROM entity_team
+                WHERE team_id = :oficinaId AND entity_type = 'AvePrincipal' AND deleted = 0
+            ");
+            $stmt->execute(['oficinaId' => $oficinaId]);
+            $aveIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
+
+            if (empty($aveIds)) {
+                return ['success' => true, 'data' => []];
+            }
+
+            // Obtener asesores (assigned_user_id) de esos AVE
+            $placeholders = implode(',', array_fill(0, count($aveIds), '?'));
+            $stmt2 = $pdo->prepare("
+                SELECT DISTINCT assigned_user_id
+                FROM ave_principal
+                WHERE id IN ($placeholders) AND deleted = 0 AND assigned_user_id IS NOT NULL
+            ");
+            $stmt2->execute($aveIds);
+            $userIds = $stmt2->fetchAll(\PDO::FETCH_COLUMN);
+
+            if (empty($userIds)) {
+                return ['success' => true, 'data' => []];
+            }
+
+            // Obtener nombres de usuarios
+            $placeholdersUsers = implode(',', array_fill(0, count($userIds), '?'));
+            $stmt3 = $pdo->prepare("
+                SELECT id, name FROM user WHERE id IN ($placeholdersUsers) AND deleted = 0 AND is_active = 1
+                ORDER BY name ASC
+            ");
+            $stmt3->execute($userIds);
+            $users = $stmt3->fetchAll(\PDO::FETCH_ASSOC);
+
+            $asesores = [];
+            foreach ($users as $user) {
+                $asesores[] = ['id' => $user['id'], 'name' => $user['name']];
+            }
+
+            return ['success' => true, 'data' => $asesores];
+
+        } catch (\Exception $e) {
+            $GLOBALS['log']->error('AvePrincipal::getAsesoresByOficina - ' . $e->getMessage());
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
     }
 
     public function cambiarStatus(string $aveId, string $status): array

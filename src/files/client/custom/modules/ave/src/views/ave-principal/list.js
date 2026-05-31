@@ -10,10 +10,23 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
         totalPaginas: 0,
         datos: [],
 
-        // Mapa de estados - solo dos opciones
         statusMap: {
-            'elaboracion': { texto: 'En Elaboración', clase: 'ave-status-elaboracion', nextStatus: 'impresion', nextButtonText: 'Aprobar', buttonClass: 'success' },
-            'impresion':   { texto: 'Listo para Imprimir', clase: 'ave-status-impresion', nextStatus: null, nextButtonText: 'Imprimir', buttonClass: 'primary' }
+            'elaboracion': { 
+                texto: 'En Elaboración', 
+                clase: 'ave-status-elaboracion', 
+                nextStatus: 'impresion', 
+                nextButtonText: 'Aprobar', 
+                buttonClass: 'success' 
+            },
+            'impresion': { 
+                texto: 'Listo para Imprimir', 
+                clase: 'ave-status-impresion', 
+                nextStatus: null, 
+                nextButtonText: 'Imprimir', 
+                buttonClass: 'primary',
+                invalidarText: 'Invalidar',
+                invalidarStatus: 'elaboracion'
+            }
         },
 
         events: {
@@ -22,7 +35,7 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
             },
             'click [data-action="filtrar"]': function () {
                 this.pagina = 1;
-                this.cargarLista();
+                this.aplicarFiltrosYRecargar();
             },
             'click [data-action="limpiar-filtros"]': function () {
                 this.limpiarFiltros();
@@ -33,7 +46,8 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
             'click [data-action="cambiar-status"]': function (e) {
                 var id = $(e.currentTarget).data('id');
                 var statusActual = $(e.currentTarget).data('status');
-                this.cambiarStatus(id, statusActual);
+                var accion = $(e.currentTarget).data('accion');
+                this.cambiarStatus(id, statusActual, accion);
             },
             'click .pag-btn': function (e) {
                 var pagina = $(e.currentTarget).data('pagina');
@@ -42,8 +56,11 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                     this.cargarLista();
                 }
             },
-            'keypress #filtro-numero, #filtro-cliente, #filtro-identificacion, #filtro-asesor': function (e) {
-                if (e.which === 13) { this.pagina = 1; this.cargarLista(); }
+            'change #filtro-cla': function (e) {
+                this.onCLAChange($(e.currentTarget).val());
+            },
+            'change #filtro-oficina': function (e) {
+                this.onOficinaChange($(e.currentTarget).val());
             }
         },
 
@@ -51,12 +68,198 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
             Dep.prototype.setup.call(this);
             console.log('list.setup() - Inicializando vista de lista');
             var user = this.getUser();
-            this.puedeAprobar = user.get('isAdmin') || (user.get('rolesIds') || []).length > 0;
+            this.currentUserId = user.get('id');
+            this.currentUserName = user.get('name');
+            this.permisos = null;
+            this.filtros = {
+                cla: null,
+                oficina: null,
+                asesor: null,
+                status: null
+            };
+            this.cargarPermisos();
+        },
+
+        // Función para verificar si el usuario puede aprobar/invalidar
+        puedeAprobarOInvalidar: function () {
+            if (!this.permisos) return false;
+            // Casa Nacional, Gerente, Director o Coordinador pueden aprobar/invalidar
+            // Asesor NO puede aprobar/invalidar
+            return this.permisos.esCasaNacional || 
+                   this.permisos.esGerente || 
+                   this.permisos.esDirector || 
+                   this.permisos.esCoordinador;
+        },
+
+        // Función para verificar si el usuario puede imprimir (Asesores también pueden)
+        puedeImprimir: function () {
+            if (!this.permisos) return true;
+            // Todos los usuarios pueden imprimir (Ver e Imprimir)
+            return true;
+        },
+
+        cargarPermisos: function () {
+            var self = this;
+            Espo.Ajax.getRequest('AvePrincipal/action/getUserInfo', { userId: this.currentUserId })
+                .then(function (response) {
+                    if (response.success) {
+                        self.permisos = response.data;
+                        self.aplicarVisibilidadFiltros();
+                        self.cargarSelectsIniciales();
+                        self.cargarLista();
+                    } else {
+                        console.error('Error al cargar permisos:', response.error);
+                        self.cargarLista();
+                    }
+                })
+                .catch(function (error) {
+                    console.error('Error en petición de permisos:', error);
+                    self.cargarLista();
+                });
+        },
+
+        aplicarVisibilidadFiltros: function () {
+            if (!this.permisos) return;
+            
+            var p = this.permisos;
+            
+            if (p.esCasaNacional) {
+                this.$el.find('#filtro-cla-group, #filtro-oficina-group, #filtro-asesor-group').show();
+            } else if (p.tieneRolesGestion) {
+                this.$el.find('#filtro-cla-group, #filtro-oficina-group').hide();
+                this.$el.find('#filtro-asesor-group').show();
+            } else {
+                this.$el.find('#filtro-cla-group, #filtro-oficina-group, #filtro-asesor-group').hide();
+            }
+        },
+
+        cargarSelectsIniciales: function () {
+            var self = this;
+            var p = this.permisos;
+            
+            if (p.esCasaNacional && p.clasDisponibles && p.clasDisponibles.length) {
+                var $claSelect = this.$el.find('#filtro-cla');
+                $claSelect.empty().append('<option value="">Todos los CLAs</option>');
+                p.clasDisponibles.forEach(function (cla) {
+                    $claSelect.append('<option value="' + cla.id + '">' + self.escape(cla.name) + '</option>');
+                });
+                $claSelect.prop('disabled', false);
+            }
+            
+            if (p.tieneRolesGestion && p.oficinaUsuario) {
+                var $oficinaSelect = this.$el.find('#filtro-oficina');
+                $oficinaSelect.empty().append('<option value="' + p.oficinaUsuario + '">' + self.escape(p.oficinaNombre || 'Oficina asignada') + '</option>').prop('disabled', true);
+                
+                var $asesorSelect = this.$el.find('#filtro-asesor');
+                $asesorSelect.empty().append('<option value="">Cargando asesores...</option>').prop('disabled', true);
+                
+                if (p.oficinaUsuario) {
+                    this.cargarAsesoresPorOficina(p.oficinaUsuario);
+                }
+            }
+            
+            if (p.esAsesor) {
+                this.$el.find('#filtro-asesor-group').hide();
+            }
+        },
+
+        onCLAChange: function (claId) {
+            var self = this;
+            var $oficinaSelect = this.$el.find('#filtro-oficina');
+            var $asesorSelect = this.$el.find('#filtro-asesor');
+            
+            if (!claId) {
+                $oficinaSelect.html('<option value="">Seleccione un CLA primero</option>').prop('disabled', true);
+                $asesorSelect.html('<option value="">Seleccione una oficina primero</option>').prop('disabled', true);
+                return;
+            }
+            
+            $oficinaSelect.html('<option value="">Cargando oficinas...</option>').prop('disabled', true);
+            $asesorSelect.html('<option value="">Seleccione una oficina primero</option>').prop('disabled', true);
+            
+            Espo.Ajax.getRequest('AvePrincipal/action/getOficinasByCLA', { claId: claId })
+                .then(function (response) {
+                    if (response.success && response.data) {
+                        $oficinaSelect.empty().append('<option value="">Todas las oficinas</option>');
+                        response.data.forEach(function (oficina) {
+                            $oficinaSelect.append('<option value="' + oficina.id + '">' + self.escape(oficina.name) + '</option>');
+                        });
+                        $oficinaSelect.prop('disabled', false);
+                    } else {
+                        $oficinaSelect.html('<option value="">Error al cargar oficinas</option>').prop('disabled', false);
+                    }
+                })
+                .catch(function () {
+                    $oficinaSelect.html('<option value="">Error al cargar oficinas</option>').prop('disabled', false);
+                });
+        },
+
+        onOficinaChange: function (oficinaId) {
+            if (oficinaId) {
+                this.cargarAsesoresPorOficina(oficinaId);
+            } else {
+                var $asesorSelect = this.$el.find('#filtro-asesor');
+                $asesorSelect.html('<option value="">Todos los asesores</option>').prop('disabled', false);
+            }
+        },
+
+        cargarAsesoresPorOficina: function (oficinaId) {
+            var self = this;
+            var $asesorSelect = this.$el.find('#filtro-asesor');
+            
+            $asesorSelect.html('<option value="">Cargando asesores...</option>').prop('disabled', true);
+            
+            Espo.Ajax.getRequest('AvePrincipal/action/getAsesoresByOficina', { oficinaId: oficinaId })
+                .then(function (response) {
+                    if (response.success && response.data && response.data.length) {
+                        $asesorSelect.empty().append('<option value="">Todos los asesores</option>');
+                        response.data.forEach(function (asesor) {
+                            $asesorSelect.append('<option value="' + asesor.id + '">' + self.escape(asesor.name) + '</option>');
+                        });
+                        $asesorSelect.prop('disabled', false);
+                    } else {
+                        $asesorSelect.html('<option value="">No hay asesores en esta oficina</option>').prop('disabled', false);
+                    }
+                })
+                .catch(function () {
+                    $asesorSelect.html('<option value="">Error al cargar asesores</option>').prop('disabled', false);
+                });
         },
 
         afterRender: function () {
             Dep.prototype.afterRender.call(this);
-            console.log('list.afterRender() - Cargando lista inicial');
+        },
+
+        aplicarFiltrosYRecargar: function () {
+            this.filtros = {
+                cla: this.$el.find('#filtro-cla').val() || null,
+                oficina: this.$el.find('#filtro-oficina').val() || null,
+                asesor: this.$el.find('#filtro-asesor').val() || null,
+                status: this.$el.find('#filtro-status').val() || null
+            };
+            
+            if (this.permisos) {
+                if (this.permisos.esAsesor) {
+                    this.filtros.asesor = this.currentUserId;
+                    this.filtros.cla = null;
+                    this.filtros.oficina = null;
+                } else if (this.permisos.tieneRolesGestion && !this.permisos.esCasaNacional) {
+                    this.filtros.oficina = this.permisos.oficinaUsuario;
+                    this.filtros.cla = null;
+                }
+            }
+            
+            this.pagina = 1;
+            this.cargarLista();
+        },
+
+        limpiarFiltros: function () {
+            this.$el.find('#filtro-status').val('');
+            this.$el.find('#filtro-cla').val('').trigger('change');
+            this.$el.find('#filtro-oficina').val('').html('<option value="">Seleccione un CLA primero</option>').prop('disabled', true);
+            this.$el.find('#filtro-asesor').val('').html('<option value="">Seleccione una oficina primero</option>').prop('disabled', true);
+            this.filtros = { cla: null, oficina: null, asesor: null, status: null };
+            this.pagina = 1;
             this.cargarLista();
         },
 
@@ -67,24 +270,21 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
             this.$el.find('#ave-list-loading').show();
             this.$el.find('#ave-list-content').hide();
 
-            var filtroStatus = this.$el.find('#filtro-status').val() || '';
-            console.log('Filtro de estado actual:', filtroStatus);
-
             var params = {
                 pagina: this.pagina,
                 porPagina: this.porPagina,
-                numero: this.$el.find('#filtro-numero').val() || '',
-                cliente: this.$el.find('#filtro-cliente').val() || '',
-                identificacion: this.$el.find('#filtro-identificacion').val() || '',
-                asesor: this.$el.find('#filtro-asesor').val() || '',
-                status: filtroStatus
+                asesor: this.filtros.asesor || '',
+                status: this.filtros.status || '',
+                claId: this.filtros.cla || '',
+                oficinaId: this.filtros.oficina || '',
+                userId: this.currentUserId
             };
 
             console.log('Parámetros enviados al servidor:', params);
 
             Espo.Ajax.getRequest('AvePrincipal/action/getLista', params)
                 .then(function (response) {
-                    console.log('Respuesta del servidor COMPLETA:', response);
+                    console.log('Respuesta del servidor:', response);
                     
                     self.$el.find('#ave-list-loading').hide();
                     self.$el.find('#ave-list-content').show();
@@ -93,10 +293,6 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                         self.datos = response.data.list || [];
                         self.totalRegistros = response.data.total || 0;
                         self.totalPaginas = response.data.totalPaginas || 0;
-                        
-                        console.log('Datos recibidos - Total registros:', self.totalRegistros);
-                        console.log('Primer registro (si existe):', self.datos[0]);
-                        console.log('Estados de los registros:', self.datos.map(function(r) { return r.status; }));
                         
                         self.renderizarTabla();
                         self.renderizarPaginacion();
@@ -114,15 +310,18 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
         },
 
         renderizarTabla: function () {
-            console.log('renderizarTabla() - Iniciando renderizado. Datos length:', this.datos.length);
+            console.log('renderizarTabla() - Datos length:', this.datos.length);
+            console.log('permisos:', this.permisos);
+            console.log('puedeAprobarOInvalidar:', this.puedeAprobarOInvalidar());
+            
             var self = this;
             var $tbody = this.$el.find('#ave-list-tbody');
             var $noData = this.$el.find('#ave-no-data');
+            var puedeAprobar = this.puedeAprobarOInvalidar();
 
             this.$el.find('#ave-total-count').text(this.totalRegistros);
 
             if (this.datos.length === 0) {
-                console.log('No hay datos para mostrar');
                 $tbody.html('');
                 $noData.show();
                 this.$el.find('#ave-paginacion').hide();
@@ -141,40 +340,65 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                 var status = item.status || 'elaboracion';
                 var statusInf = self.statusMap[status] || { texto: status, clase: '' };
                 
-                // Determinar el botón de acción según el estado
-                var actionButton = '';
-                if (status === 'elaboracion') {
-                    // Estado En Elaboración → Botón Aprobar
-                    actionButton = '<button class="ave-btn ave-btn-success ave-btn-sm" data-action="cambiar-status" data-id="' + item.id + '" data-status="' + status + '" style="margin-left: 5px;" title="Aprobar y pasar a Listo para Imprimir">';
-                    actionButton += '<i class="fas fa-check"></i> Aprobar';
-                    actionButton += '</button>';
-                } else if (status === 'impresion') {
-                    // Estado Listo para Imprimir → Botón Imprimir
-                    actionButton = '<button class="ave-btn ave-btn-primary ave-btn-sm" data-action="cambiar-status" data-id="' + item.id + '" data-status="' + status + '" style="margin-left: 5px;" title="Imprimir reporte PDF">';
-                    actionButton += '<i class="fas fa-print"></i> Imprimir';
-                    actionButton += '</button>';
+                var actionButtons = '';
+                
+                // Botón Ver - visible para todos
+                actionButtons += '<button class="ave-btn ave-btn-secondary ave-btn-sm" data-action="ver-ave" data-id="' + item.id + '" title="Ver">';
+                actionButtons += '<i class="fas fa-eye"></i> Ver';
+                actionButtons += '</button>';
+                
+                if (status === 'impresion') {
+                    // Botón Imprimir - visible para TODOS (incluyendo asesores)
+                    actionButtons += '<button class="ave-btn ave-btn-primary ave-btn-sm" data-action="cambiar-status" data-id="' + item.id + '" data-status="' + status + '" data-accion="imprimir" style="margin-left: 5px;" title="Imprimir">';
+                    actionButtons += '<i class="fas fa-print"></i> Imprimir';
+                    actionButtons += '</button>';
                 }
+                
+                // Botones de Aprobar e Invalidar - SOLO para usuarios con permisos de gestión
+                if (puedeAprobar) {
+                    if (status === 'elaboracion') {
+                        actionButtons += '<button class="ave-btn ave-btn-success ave-btn-sm" data-action="cambiar-status" data-id="' + item.id + '" data-status="' + status + '" data-accion="aprobar" style="margin-left: 5px;" title="Aprobar">';
+                        actionButtons += '<i class="fas fa-check"></i> Aprobar';
+                        actionButtons += '</button>';
+                    } else if (status === 'impresion') {
+                        actionButtons += '<button class="ave-btn ave-btn-warning ave-btn-sm" data-action="cambiar-status" data-id="' + item.id + '" data-status="' + status + '" data-accion="invalidar" style="margin-left: 5px;" title="Invalidar">';
+                        actionButtons += '<i class="fas fa-undo-alt"></i> Invalidar';
+                        actionButtons += '</button>';
+                    }
+                }
+
+                var ubicacionInmueble = self.formatearUbicacion(item);
 
                 html += '<tr>';
                 html += '<td style="text-align:center; font-weight:600;">' + (offset + idx + 1) + '</td>';
                 html += '<td><strong>' + self.escape(item.numeroAve || '-') + '</strong></td>';
                 html += '<td>' + self.escape(item.nombreCliente || '-') + '</td>';
                 html += '<td>' + self.escape(identificacion) + '</td>';
-                html += '<td>' + self.escape(item.aveInmuebleName || '-') + '</td>';
+                html += '<td>' + self.escape(ubicacionInmueble) + '</td>';
                 html += '<td>' + self.escape(item.assignedUserName || '-') + '</td>';
                 html += '<td>' + fecha + '</td>';
                 html += '<td style="text-align:center;">';
                 html += '<span class="ave-leyenda-badge ' + statusInf.clase + '">' + statusInf.texto + '</span>';
                 html += '</td>';
                 html += '<td style="text-align:center; white-space: nowrap;">';
-                html += '<button class="ave-btn ave-btn-secondary ave-btn-sm" data-action="ver-ave" data-id="' + item.id + '" title="Ver"><i class="fas fa-eye"></i> Ver</button>';
-                html += actionButton;
+                html += actionButtons;
                 html += '</td>';
                 html += '</tr>';
             });
 
             $tbody.html(html);
-            console.log('Tabla renderizada correctamente');
+        },
+
+        formatearUbicacion: function (item) {
+            var partes = [];
+            if (item.aveInmuebleUrbanizacion) partes.push(item.aveInmuebleUrbanizacion);
+            if (item.aveInmuebleCiudad) partes.push(item.aveInmuebleCiudad);
+            if (item.aveInmuebleEstado) partes.push(item.aveInmuebleEstado);
+            
+            if (partes.length > 0) {
+                return partes.join(', ');
+            }
+            return item.aveInmuebleName || '-';
         },
 
         renderizarPaginacion: function () {
@@ -201,89 +425,86 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
             this.$el.find('#ave-pag-controles').html(html);
         },
 
-        cambiarStatus: function (id, statusActual) {
+        cambiarStatus: function (id, statusActual, accion) {
             var self = this;
             
-            console.log('=== cambiarStatus ===');
-            console.log('ID:', id);
-            console.log('Status Actual:', statusActual);
-            
-            // Si está en elaboración → Aprobar (cambiar a impresion)
-            if (statusActual === 'elaboracion') {
-                if (!confirm('¿Está seguro de aprobar este AVE? Pasará a estado "Listo para Imprimir".')) {
-                    return;
-                }
+            if (statusActual === 'elaboracion' && accion === 'aprobar') {
+                if (!confirm('¿Está seguro de aprobar este AVE? Pasará a estado "Listo para Imprimir".')) return;
                 
-                var $btn = this.$el.find('[data-action="cambiar-status"][data-id="' + id + '"]');
+                var $btn = this.$el.find('[data-action="cambiar-status"][data-id="' + id + '"][data-accion="aprobar"]');
                 var originalHtml = $btn.html();
                 $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
-                
-                console.log('Enviando petición para cambiar a impresion...');
                 
                 Espo.Ajax.postRequest('AvePrincipal/action/cambiarStatus', {
                     aveId: id,
                     status: 'impresion'
                 }).then(function (response) {
-                    console.log('Respuesta del servidor:', response);
                     if (response.success) {
-                        console.log('Estado cambiado exitosamente a:', response.status);
-                        Espo.Ui.success('AVE aprobado correctamente. Estado: Listo para Imprimir');
-                        // Recargar la lista completa para mostrar el nuevo estado
+                        Espo.Ui.success('AVE aprobado correctamente');
                         self.pagina = 1;
                         self.cargarLista();
                     } else {
-                        console.error('Error en respuesta:', response.error);
                         Espo.Ui.error(response.error || 'Error al cambiar estado');
                         $btn.prop('disabled', false).html(originalHtml);
                     }
-                }).catch(function (error) {
-                    console.error('Error en petición:', error);
+                }).catch(function () {
                     Espo.Ui.error('Error al cambiar el estado');
                     $btn.prop('disabled', false).html(originalHtml);
                 });
             } 
-            // Si está en impresion → Imprimir PDF
-            else if (statusActual === 'impresion') {
-                if (!confirm('¿Desea imprimir el reporte de este AVE?')) {
-                    return;
-                }
+            else if (statusActual === 'impresion' && accion === 'imprimir') {
+                if (!confirm('¿Desea imprimir el reporte de este AVE?')) return;
+                window.open('api/v1/AvePrincipal/action/generarPdf?aveId=' + id, '_blank');
+                Espo.Ui.success('Generando PDF...');
+            }
+            else if (statusActual === 'impresion' && accion === 'invalidar') {
+                if (!confirm('¿Está seguro de invalidar este AVE? Volverá a estado "En Elaboración".')) return;
                 
-                var $btn = this.$el.find('[data-action="cambiar-status"][data-id="' + id + '"]');
+                var $btn = this.$el.find('[data-action="cambiar-status"][data-id="' + id + '"][data-accion="invalidar"]');
                 var originalHtml = $btn.html();
                 $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
                 
-                // Abrir PDF en nueva pestaña
-                window.open('api/v1/AvePrincipal/action/generarPdf?aveId=' + id, '_blank');
-                
-                $btn.prop('disabled', false).html(originalHtml);
-                Espo.Ui.success('Generando PDF...');
+                Espo.Ajax.postRequest('AvePrincipal/action/cambiarStatus', {
+                    aveId: id,
+                    status: 'elaboracion'
+                }).then(function (response) {
+                    if (response.success) {
+                        Espo.Ui.success('AVE invalidado. Estado: En Elaboración');
+                        self.pagina = 1;
+                        self.cargarLista();
+                    } else {
+                        Espo.Ui.error(response.error || 'Error al cambiar estado');
+                        $btn.prop('disabled', false).html(originalHtml);
+                    }
+                }).catch(function () {
+                    Espo.Ui.error('Error al cambiar el estado');
+                    $btn.prop('disabled', false).html(originalHtml);
+                });
             }
         },
 
         crearNuevo: function () {
-            console.log('crearNuevo()');
+            console.log('crearNuevo() - Usuario actual:', this.currentUserId);
             var self = this;
-            Espo.Ajax.postRequest('AvePrincipal', { name: 'Nuevo AVE' })
-                .then(function (response) {
-                    if (response && response.id) {
-                        self.getRouter().navigate('#AvePrincipal/view/' + response.id, { trigger: true });
-                    } else {
-                        Espo.Ui.error('No se pudo crear el avalúo');
-                    }
-                }).catch(function () { Espo.Ui.error('Error al crear el avalúo'); });
+            
+            Espo.Ajax.postRequest('AvePrincipal', { 
+                name: 'Nuevo AVE',
+                assignedUserId: this.currentUserId,
+                assignedUserName: this.currentUserName
+            })
+            .then(function (response) {
+                if (response && response.id) {
+                    self.getRouter().navigate('#AvePrincipal/view/' + response.id, { trigger: true });
+                } else {
+                    Espo.Ui.error('No se pudo crear el avalúo');
+                }
+            }).catch(function () { 
+                Espo.Ui.error('Error al crear el avalúo'); 
+            });
         },
 
         verAve: function (id) {
-            console.log('verAve() - ID:', id);
             if (id) this.getRouter().navigate('#AvePrincipal/view/' + id, { trigger: true });
-        },
-
-        limpiarFiltros: function () {
-            console.log('limpiarFiltros()');
-            this.$el.find('#filtro-numero, #filtro-cliente, #filtro-identificacion, #filtro-asesor').val('');
-            this.$el.find('#filtro-status').val('');
-            this.pagina = 1;
-            this.cargarLista();
         },
 
         escape: function (text) {
