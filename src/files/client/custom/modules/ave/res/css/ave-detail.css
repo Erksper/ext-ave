@@ -148,68 +148,186 @@
     margin-top: 2px;
 }
 
-/* ── Tarjetas de referencia ── */
+/* ── Tarjetas de referencia estilo inmueble (mismo que pestaña 2) ── */
 .ave-ref-card {
     border: 2px solid var(--ave-border);
     border-radius: 10px;
-    margin-bottom: 12px;
+    margin-bottom: 20px;
     overflow: hidden;
-    transition: border-color 0.2s;
+    transition: all 0.2s ease;
+    background: var(--ave-white);
+}
+
+.ave-ref-card:hover {
+    border-color: var(--ave-primary);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
 .ave-ref-card-header {
-    background: #f8f9fa;
-    padding: 12px 18px;
+    background: linear-gradient(135deg, #D4C19C 0%, #E8D5B0 100%);
+    padding: 14px 18px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    cursor: default;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.ave-ref-card-header:hover {
+    background: linear-gradient(135deg, #C9B58A 0%, #D4C19C 100%);
+}
+
+.ave-ref-card-header-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex: 1;
+    min-width: 0;
 }
 
 .ave-ref-card-num {
-    background: var(--ave-primary);
+    background: rgba(184,162,121,0.5);
     color: white;
     border-radius: 50%;
-    width: 26px;
-    height: 26px;
+    width: 32px;
+    height: 32px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 700;
+    flex-shrink: 0;
+}
+
+.ave-ref-thumb {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 2px solid rgba(255,255,255,0.5);
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.3);
+}
+
+.ave-ref-thumb-empty {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255,255,255,0.8);
+    font-size: 24px;
     flex-shrink: 0;
 }
 
 .ave-ref-card-info {
     flex: 1;
-    margin: 0 12px;
 }
 
 .ave-ref-card-title {
     font-weight: 700;
-    font-size: 13px;
-    color: var(--ave-text);
+    font-size: 15px;
+    color: white;
+    margin-bottom: 4px;
 }
 
 .ave-ref-card-subtitle {
-    font-size: 11px;
-    color: var(--ave-text-muted);
-    margin-top: 1px;
+    font-size: 12px;
+    color: rgba(255,255,255,0.9);
+}
+
+/* Indicador de expandir/colapsar - movido más a la izquierda */
+.ave-ref-expand-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    margin-left: 5px;
+    padding-left: 0;
+    color: rgba(255,255,255,0.85);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    min-width: 100px;
+    flex-shrink: 0;
+}
+
+.ave-ref-expand-indicator i {
+    transition: transform 0.2s ease;
+    font-size: 13px;
+}
+
+.ave-ref-expand-indicator .expand-text {
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.ave-ref-expand-indicator:hover {
+    color: white;
 }
 
 .ave-ref-card-actions {
     display: flex;
-    gap: 6px;
+    gap: 8px;
 }
 
+/* Body de la tarjeta con foto a la izquierda */
 .ave-ref-card-body {
-    padding: 16px 18px;
-    background: var(--ave-white);
+    padding: 20px;
+    background: #fafafa;
     border-top: 1px solid var(--ave-border);
 }
 
-.ave-ref-field {
-    margin-bottom: 8px;
+.ave-ref-body-layout {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.ave-ref-body-foto {
+    flex-shrink: 0;
+    width: 200px;
+}
+
+.ave-ref-body-foto img {
+    width: 100%;
+    max-height: 150px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid var(--ave-border);
+}
+
+.ave-ref-body-foto-empty {
+    width: 100%;
+    height: 150px;
+    background: #f0f0f0;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--ave-text-muted);
+    font-size: 12px;
+}
+
+.ave-ref-body-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.ave-ref-fields-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.ave-ref-field-item {
+    margin-bottom: 0;
 }
 
 .ave-ref-field-label {
@@ -217,24 +335,69 @@
     font-weight: 600;
     color: var(--ave-text-muted);
     text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 4px;
 }
 
 .ave-ref-field-value {
-    font-size: 13px;
-    color: var(--ave-text);
+    font-size: 14px;
     font-weight: 500;
+    color: var(--ave-text);
 }
 
-/* Badge de "usar en cálculo" */
+.ave-ref-field-value.highlight {
+    color: var(--ave-primary);
+    font-weight: 700;
+    font-size: 16px;
+}
+
+/* Badge de cálculo */
 .ave-ref-calc-badge {
     display: inline-block;
-    padding: 2px 8px;
-    border-radius: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
     font-size: 11px;
     font-weight: 700;
+    margin-left: 8px;
 }
-.ave-ref-calc-si  { background: #d4edda; color: #155724; }
-.ave-ref-calc-no  { background: #f8d7da; color: #721c24; }
+
+.ave-ref-calc-si {
+    background: rgba(255,255,255,0.3);
+    color: white;
+}
+
+.ave-ref-calc-no {
+    background: rgba(0,0,0,0.2);
+    color: rgba(255,255,255,0.8);
+}
+
+/* Chips de área */
+.ave-ref-areas-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.ave-ref-area-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 11px;
+    color: white;
+}
+
+.ave-ref-area-chip i {
+    font-size: 10px;
+}
+
+.ave-ref-area-chip strong {
+    font-weight: 700;
+}
 
 /* Valor por m² calculado */
 .ave-valorm2-display {
@@ -343,6 +506,12 @@
 }
 
 /* ── Responsive ── */
+@media (max-width: 992px) {
+    .ave-ref-fields-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
 @media (max-width: 768px) {
     .ave-tabs-nav {
         padding: 8px 10px 0;
@@ -360,15 +529,37 @@
         gap: 10px;
     }
     .ave-ref-card-actions {
-        flex-direction: column;
+        flex-direction: row;
+        margin-top: 10px;
+        width: 100%;
+        justify-content: flex-end;
     }
     .ave-preview-grid {
         grid-template-columns: repeat(2, 1fr);
+    }
+    .ave-ref-fields-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .ave-ref-body-layout {
+        flex-direction: column;
+    }
+    .ave-ref-body-foto {
+        width: 100%;
+    }
+    .ave-ref-expand-indicator {
+        margin-left: 0;
+        margin-top: 5px;
+        justify-content: flex-start;
+        padding-left: 0;
+        width: 100%;
     }
 }
 
 @media (max-width: 480px) {
     .ave-preview-grid {
+        grid-template-columns: 1fr;
+    }
+    .ave-ref-fields-grid {
         grid-template-columns: 1fr;
     }
 }
@@ -390,65 +581,6 @@
     justify-content: center;
     color: var(--ave-text-muted);
     font-size: 18px;
-}
-
-/* ── Chips de área en el header ── */
-.ave-ref-areas-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    margin-top: 5px;
-}
-
-.ave-ref-area-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: var(--ave-light);
-    border: 1px solid var(--ave-border);
-    border-radius: 20px;
-    padding: 2px 10px;
-    font-size: 11px;
-    color: var(--ave-text-muted);
-    white-space: nowrap;
-}
-
-.ave-ref-area-chip i {
-    font-size: 10px;
-    color: var(--ave-primary);
-}
-
-.ave-ref-area-chip strong {
-    color: var(--ave-text);
-}
-
-.ave-ref-area-chip--precio {
-    border-color: var(--ave-primary);
-    background: rgba(184,162,121,0.08);
-}
-
-.ave-ref-area-chip--precio strong {
-    color: var(--ave-primary-dark);
-}
-
-/* ── Foto a tamaño completo en el body ── */
-.ave-ref-foto-full {
-    width: 100%;
-    max-width: 140px;
-    height: 100px;
-    object-fit: cover;
-    border-radius: 8px;
-    border: 1px solid var(--ave-border);
-    margin-top: 4px;
-    display: block;
-}
-
-@media (max-width: 768px) {
-    .ave-ref-thumb { width: 40px; height: 40px; }
-    .ave-ref-areas-row { gap: 4px; }
-    .ave-ref-area-chip { font-size: 10px; padding: 2px 7px; }
-    .ave-ref-foto-full { max-width: 100%; height: 120px; }
 }
 
 /* ── Foto en tarjeta del inmueble seleccionado ── */

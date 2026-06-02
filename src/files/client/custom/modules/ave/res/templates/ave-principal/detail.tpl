@@ -623,7 +623,7 @@
                             <label class="ave-form-label">Tipo de Propiedad</label>
                             <select id="inm-m-tipoPropiedad" class="ave-form-control">
                                 <option value="">-- Seleccione --</option>
-                                <option value="habitacional">Habitacional</option>
+                                <option value="habitacional">Residencial</option>
                                 <option value="comercial">Comercial</option>
                                 <option value="industrial">Industrial</option>
                                 <option value="vacacional">Vacacional</option>
@@ -636,7 +636,7 @@
                             <label class="ave-form-label">Sub Tipo</label>
                             <select id="inm-m-subtipoPropiedad" class="ave-form-control">
                                 <option value="">-- Seleccione --</option>
-                                <option value="departamento">Departamento</option>
+                                <option value="departamento">Apartamento</option>
                                 <option value="casa">Casa</option>
                                 <option value="town-house">Town-House</option>
                                 <option value="terreno">Terreno</option>
@@ -733,7 +733,9 @@
         <div class="modal-content">
             <div class="modal-header ave-modal-header">
                 <button type="button" class="ave-modal-close" data-dismiss="modal">&times;</button>
-                <h4 class="ave-modal-title" id="modal-ref-titulo"><i class="fas fa-tag"></i> Inmueble de Referencia</h4>
+                <h4 class="ave-modal-title" id="modal-ref-titulo">
+                    <i class="fas fa-tag"></i> <span id="modal-ref-titulo-text">Inmueble de Referencia</span>
+                </h4>
             </div>
             <div class="modal-body" style="padding:24px;">
                 <input type="hidden" id="ref-modal-tipo">
@@ -744,7 +746,7 @@
                     <div class="col-md-4"><div class="ave-form-group"><label class="ave-form-label">Usar en Cálculo</label><select id="ref-usarCalculo" class="ave-form-control"><option value="1">Sí</option><option value="0">No</option></select></div></div>
                 </div>
                 <div class="row">
-                    <div class="col-md-4"><div class="ave-form-group"><label class="ave-form-label">Valor Referencial (USD)</label><input type="number" id="ref-valorReferencial" class="ave-form-control" step="0.01"></div></div>
+                    <div class="col-md-4"><div class="ave-form-group"><label class="ave-form-label" for="ref-valorReferencial" id="ref-valor-label">Valor Referencial (USD)</label><input type="number" id="ref-valorReferencial" class="ave-form-control" step="0.01" placeholder="Valor Referencial (USD)"></div></div>
                     <div class="col-md-4"><div class="ave-form-group"><label class="ave-form-label">Área Terreno (m²)</label><input type="number" id="ref-areaTerreno" class="ave-form-control" step="0.01"></div></div>
                     <div class="col-md-4"><div class="ave-form-group"><label class="ave-form-label">Área Construida (m²)</label><input type="number" id="ref-areaConstruida" class="ave-form-control" step="0.01"></div></div>
                 </div>
@@ -885,7 +887,7 @@
                 <div class="ave-form-group"><label class="ave-form-label required">Nombre</label><input type="text" id="item-nombre" class="ave-form-control"></div>
                 <div class="ave-form-group" id="item-descripcion-group"><label class="ave-form-label">Descripción</label><textarea id="item-descripcion" class="ave-form-control" rows="2"></textarea></div>
                 <div class="ave-form-group" id="item-impacto-group" style="display:none;"><label class="ave-form-label">Impacto</label><div style="display:flex; gap:20px;"><label><input type="radio" name="item-impacto" value="positivo" checked> Positivo</label><label><input type="radio" name="item-impacto" value="negativo"> Negativo</label></div></div>
-                <div class="ave-checkbox-wrapper"><input type="checkbox" id="item-predeterminado"><label class="ave-checkbox-label" for="item-predeterminado">Predeterminado (visible para todos)</label></div>
+                <div class="ave-checkbox-wrapper" id="item-predeterminado-group"><input type="checkbox" id="item-predeterminado"><label class="ave-checkbox-label" for="item-predeterminado">Predeterminado (visible para todos los equipos)</label></div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="ave-btn ave-btn-secondary" data-dismiss="modal">Cancelar</button>

@@ -253,16 +253,11 @@ define('ave:views/ave-principal/detail', [
             });
         },
 
-        // afterRender: function () {
-        //     Dep.prototype.afterRender.call(this);
-        //     this.cargarDatos();
-        // },
-
         afterRender: function () {
             Dep.prototype.afterRender.call(this);
             this.cargarDatos();
             
-            // Exponer el manager en la consola para debugging (sin setupKeyboardDebug)
+            // Exponer el manager en la consola para debugging
             var self = this;
             window.aveDebug = {
                 getPrecios: function() {
@@ -340,34 +335,48 @@ define('ave:views/ave-principal/detail', [
                     };
                 },
                 recalcular: function() {
-                    console.log('Recalculando precios en el servidor...');
-                    return Espo.Ajax.postRequest('AvePrincipal/action/recalcularPrecios', {
-                        aveId: self.aveId,
-                        pesoOfertas: parseFloat(self.$el.find('#pesoOfertas').val()) || 50,
-                        ajustePrecio: parseFloat(self.$el.find('#ajustePrecio').val()) || 0
-                    }).then(function(r) {
-                        console.log('Respuesta del servidor:', r);
-                        if (r.success) {
-                            console.log('Valores devueltos:');
-                            console.log('  valorMax:', r.data.valorMax);
-                            console.log('  valorMin:', r.data.valorMin);
-                            console.log('  valorPromedio:', r.data.valorPromedio);
-                            console.log('  precioMax:', r.data.precioMax);
-                            console.log('  precioMin:', r.data.precioMin);
-                            console.log('  precioOriginal (Precio Venta):', r.data.precioOriginal);
-                            console.log('  precioSugerido:', r.data.precioSugerido);
-                        }
-                        return r;
-                    });
-                },
-                forzarRecalculoLocal: function() {
-                    console.log('Forzando recálculo local...');
+                    console.log('Recalculando precios localmente...');
                     if (self.precioManager) {
-                        self.precioManager.calcular();
+                        self.precioManager.recargar();
                     }
                 }
             };
+
+            window.aveDebugActualizarPreview = function() {
+                if (self.previewManager) {
+                    self.previewManager.generar();
+                }
+            };
             console.log('✅ Debug disponible: escribe aveDebug.getPrecios() en la consola');
+            
+            // Interceptar cambios del inmueble para recargar factores y precios
+            var self = this;
+            var originalMostrarInmueble = this.inmuebleManager.mostrarInmueble;
+            this.inmuebleManager.mostrarInmueble = function(data) {
+                originalMostrarInmueble.call(self.inmuebleManager, data);
+                // Recargar factores después de mostrar el inmueble
+                if (self.factoresManager) {
+                    self.factoresManager.recargarPorInmueble();
+                }
+                // Recargar precios después de mostrar el inmueble
+                if (self.precioManager) {
+                    self.precioManager.recargar();
+                }
+            };
+            
+            // También cuando se limpia la selección
+            var originalLimpiarSeleccion = this.inmuebleManager.limpiarSeleccion;
+            this.inmuebleManager.limpiarSeleccion = function() {
+                originalLimpiarSeleccion.call(self.inmuebleManager);
+                // Limpiar factores también
+                if (self.factoresManager) {
+                    self.factoresManager.recargarPorInmueble();
+                }
+                // Recargar precios
+                if (self.precioManager) {
+                    self.precioManager.recargar();
+                }
+            };
         },
 
         // ─────────────────────────────────────────────────────────────
@@ -392,14 +401,15 @@ define('ave:views/ave-principal/detail', [
                     var numero = self.aveData.numeroAve || 'Sin número asignado';
                     self.$el.find('#ave-subtitle').text(numero);
                     
-                    // Cargar catálogos de items
+                    // PRIMERO: Poblar el formulario (esto carga los items existentes)
+                    self.poblarFormulario(response.data);
+                    
+                    // SEGUNDO: Cargar catálogos después de tener los datos
                     self.factoresManager.cargarCatalogo(self.teamId);
                     self.fodaManager.cargarCatalogo(self.teamId);
                     self.decisionesManager.cargarCatalogo(self.teamId);
                     self.canalesManager.cargarCatalogo(self.teamId);
                     self.planesManager.cargarCatalogo(self.teamId);
-                    
-                    self.poblarFormulario(response.data);
                 })
                 .catch(function (err) {
                     console.error('Error en cargarDatos:', err);
@@ -426,6 +436,10 @@ define('ave:views/ave-principal/detail', [
             this.inmuebleManager.inicializarBuscador();
             if (data.inmueble) {
                 this.inmuebleManager.mostrarInmueble(data.inmueble);
+                // Recargar factores cuando se carga un inmueble
+                if (this.factoresManager) {
+                    this.factoresManager.recargarPorInmueble();
+                }
             }
             
             // Pestaña 3 — Situación Legal
@@ -438,6 +452,7 @@ define('ave:views/ave-principal/detail', [
             this.fodaManager.cargar(data.analisis || []);
             
             // Pestañas 7, 9, 10, 11 — Items
+            console.log('Factores a cargar:', data.factoresAplicados);
             this.factoresManager.cargarItems(data.factoresAplicados || []);
             this.decisionesManager.cargarItems(data.decisiones || []);
             this.canalesManager.cargarItems(data.canales || []);
@@ -446,7 +461,12 @@ define('ave:views/ave-principal/detail', [
             // Pestaña 8 — Precios
             this.precioManager.poblar(ave);
             if (ave.teamId) {
-                this.cargarLogoEquipo(ave.teamId);
+                this.cargarLogoOficina(ave.teamId);  // Cambiar de cargarLogoEquipo a cargarLogoOficina
+            }
+            
+            // Recargar precios después de cargar referencias e inmueble
+            if (this.precioManager) {
+                this.precioManager.recargar();
             }
             
             // Guardar datos del asesor para la vista previa
@@ -523,6 +543,55 @@ define('ave:views/ave-principal/detail', [
                 $help.hide();
                 return true;
             }
+        },
+
+        actualizarPreview: function () {
+            if (this.previewManager && this.tabsManager && this.tabsManager.getTabActual() === 'tab-12') {
+                this.previewManager.generar();
+            }
+        },
+
+        cargarLogoOficina: function (teamId) {
+            var self = this;
+            if (!teamId) {
+                console.log('No hay teamId, logo no se cargará');
+                return;
+            }
+            
+            console.log('Buscando logo para equipo:', teamId);
+            
+            // Buscar el usuario cuyo nombre de usuario es igual al teamId
+            Espo.Ajax.getRequest('User', {
+                where: [{
+                    type: 'equals',
+                    attribute: 'userName',
+                    value: teamId
+                }],
+                maxSize: 1,
+                select: 'id,name,cImagenId,userName'
+            }).then(function (response) {
+                var users = response.list || [];
+                console.log('Usuarios encontrados con userName=' + teamId + ':', users);
+                
+                if (users.length > 0 && users[0].cImagenId) {
+                    self.teamLogoUrl = window.location.origin + '/api/v1/Attachment/file/' + users[0].cImagenId;
+                    console.log('Logo encontrado:', self.teamLogoUrl);
+                } else {
+                    console.log('No se encontró logo para el equipo:', teamId);
+                    self.teamLogoUrl = null;
+                }
+                
+                // Actualizar vista previa si está visible
+                if (self.previewManager) {
+                    self.previewManager.generar();
+                }
+            }).catch(function (error) {
+                console.error('Error al buscar logo:', error);
+                self.teamLogoUrl = null;
+                if (self.previewManager) {
+                    self.previewManager.generar();
+                }
+            });
         },
 
         // ─────────────────────────────────────────────────────────────

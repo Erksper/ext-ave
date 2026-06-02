@@ -1,0 +1,42 @@
+{
+    "fields": {
+        "name": {
+            "type": "varchar",
+            "required": true,
+            "maxLength": 255
+        },
+        "descripcion": {
+            "type": "text"
+        },
+        "tipo": {
+            "type": "enum",
+            "options": ["factor", "decision", "canal", "plan"],
+            "required": true
+        },
+        "impacto": {
+            "type": "enum",
+            "options": ["positivo", "negativo"]
+        },
+        "predeterminado": {
+            "type": "bool",
+            "default": false
+        }
+    },
+    "links": {
+        "team": {
+            "type": "belongsTo",
+            "entity": "Team",
+            "foreign": "aveItems"
+        },
+        "avePrincipales": {
+            "type": "hasMany",
+            "entity": "AvePrincipal",
+            "foreign": "items",
+            "relationName": "ave_principal_item"
+        }
+    },
+    "collection": {
+        "orderBy": "name",
+        "order": "asc"
+    }
+}

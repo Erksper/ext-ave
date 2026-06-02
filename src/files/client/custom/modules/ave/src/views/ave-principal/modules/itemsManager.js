@@ -16,8 +16,6 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
         this.tieneImpacto    = options.tieneImpacto    || false;
         this.tieneDescripcion = options.tieneDescripcion !== false;
         
-        this.factoresTipos = [];
-        
         this._ids            = ID_MAP[tipo] || {
             tbody:    tipo + 's-tbody',
             emptyRow: tipo + '-empty-row',
@@ -25,17 +23,56 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
         };
     };
 
+    // Obtener el subtipo del inmueble actual
+    ItemsManager.prototype.getSubtipoInmueble = function () {
+        var inmueble = this.view.inmuebleManager?.inmuebleActual;
+        if (!inmueble || !inmueble.subtipoPropiedad) {
+            return null;
+        }
+        return inmueble.subtipoPropiedad;
+    };
+
+    // Verificar si hay inmueble seleccionado
+    ItemsManager.prototype.validarInmueble = function () {
+        var subtipo = this.getSubtipoInmueble();
+        if (!subtipo) {
+            Espo.Ui.warning('Debe seleccionar un inmueble antes de agregar factores');
+            // Cambiar a la pestaña del inmueble
+            this.view.tabsManager.activarTab('tab-2');
+            return false;
+        }
+        return true;
+    };
+
     ItemsManager.prototype.cargarCatalogo = function (teamId) {
         var self = this;
-        Espo.Ajax.getRequest('AvePrincipal/action/getFactoresPorTipo', {
-            tipo: this.tipo, teamId: teamId
-        })
-        .then(function (response) {
-            if (response.success && response.data) {
-                self.catalogo = response.data;
-                self.poblarSelect();
+        var subtipo = this.getSubtipoInmueble();
+        
+        var url = 'AvePrincipal/action/getFactoresPorTipo';
+        var params = { tipo: this.tipo };
+        
+        // Para factores, enviar teamId y subtipo
+        if (this.tipo === 'factor') {
+            if (teamId) {
+                params.teamId = teamId;
             }
-        });
+            if (subtipo) {
+                params.descripcion = subtipo;
+            }
+        } else {
+            // Para otros tipos, enviar teamId para filtro
+            if (teamId) {
+                params.teamId = teamId;
+            }
+        }
+        
+        Espo.Ajax.getRequest(url, params)
+            .then(function (response) {
+                if (response.success && response.data) {
+                    self.catalogo = response.data;
+                    self.poblarSelect();
+                }
+            });
     };
 
     ItemsManager.prototype.poblarSelect = function () {
@@ -43,37 +80,120 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
         var $select = this.view.$el.find('#' + this._ids.selectId);
         if (!$select.length) return;
 
+        // Obtener IDs de los items ya agregados
         var idsAgregados = this.items.map(function (i) { return String(i.id); });
+        
+        console.log('Poblar select - Tipo:', this.tipo);
+        console.log('Items agregados IDs:', idsAgregados);
+        console.log('Catálogo completo:', this.catalogo);
 
         $select.empty().append('<option value="">-- Seleccione ' + this.labelSingular + ' --</option>');
+        
         this.catalogo.forEach(function (item) {
+            // Verificar si el item NO está ya agregado
             if (idsAgregados.indexOf(String(item.id)) === -1) {
                 var text = self.escape(item.name);
-                // Para factores NO mostramos el impacto porque se asigna al agregar
-                if (self.tieneImpacto && item.impacto && self.tipo !== 'factor') {
-                    text += ' (' + (item.impacto === 'positivo' ? 'Positivo' : 'Negativo') + ')';
-                }
                 $select.append('<option value="' + item.id + '">' + text + '</option>');
+            }
+        });
+        
+        console.log('Opciones disponibles en select:', $select.find('option').length - 1);
+    };
+
+    ItemsManager.prototype.cargarItems = function (items) {
+        console.log('cargarItems - tipo:', this.tipo);
+        console.log('items recibidos:', items);
+        
+        if (this.tipo === 'factor') {
+            // Filtrar solo los factores que tienen descripcion igual al subtipo actual
+            var subtipoActual = this.getSubtipoInmueble();
+            console.log('Subtipo actual:', subtipoActual);
+            
+            if (subtipoActual) {
+                // Mapear los items para que tengan la estructura correcta
+                this.items = (items || []).map(function(item) {
+                    return {
+                        id: item.factorCatalogoId || item.id,  // ← Asegurar que el ID sea correcto
+                        name: item.factorName || item.name,
+                        tipo: item.tipo || 'positivo',
+                        descripcion: item.descripcion || subtipoActual
+                    };
+                }).filter(function(item) {
+                    return item.descripcion === subtipoActual;
+                });
+            } else {
+                this.items = [];
+            }
+        } else {
+            this.items = items || [];
+        }
+        
+        console.log('Items cargados (con IDs):', this.items);
+        this.renderizar();
+        this.poblarSelect();  // ← Esto ahora filtrará los items ya agregados
+        if (this.tipo === 'factor') {
+            this.actualizarTotalImpacto();
+        }
+    };
+
+    // Recargar catálogo cuando cambia el inmueble
+    ItemsManager.prototype.recargarPorInmueble = function () {
+        var self = this;
+        if (this.tipo !== 'factor') return;
+        
+        var subtipo = this.getSubtipoInmueble();
+        if (!subtipo) {
+            this.items = [];
+            this.catalogo = [];
+            this.renderizar();
+            this.poblarSelect();
+            this.actualizarTotalImpacto();
+            return;
+        }
+        
+        // Recargar catálogo con el nuevo subtipo
+        Espo.Ajax.getRequest('AvePrincipal/action/getFactoresPorTipo', { 
+            tipo: this.tipo, 
+            teamId: this.view.teamId,
+            descripcion: subtipo
+        }).then(function (response) {
+            if (response.success && response.data) {
+                self.catalogo = response.data;
+                // Filtrar items actuales por el nuevo subtipo
+                self.items = self.items.filter(function(item) {
+                    return item.descripcion === subtipo;
+                });
+                self.renderizar();
+                self.poblarSelect();
+                self.actualizarTotalImpacto();
             }
         });
     };
 
-    ItemsManager.prototype.cargarItems = function (items) {
-        if (this.tipo === 'factor') {
-            this.items = items || [];
-            this.factoresTipos = this.items.map(function(i) { return i.tipo || 'positivo'; });
-        } else {
-            this.items = items || [];
-        }
-        this.renderizar();
-        this.poblarSelect();
-        this.actualizarTotalImpacto();
-    };
-
     ItemsManager.prototype.agregarDesdeSelect = function () {
         var self = this;
+        
+        // Para factores, validar que haya inmueble seleccionado
+        if (this.tipo === 'factor') {
+            if (!this.validarInmueble()) return;
+            
+            var $select = this.view.$el.find('#' + this._ids.selectId);
+            var id = $select.val();
+            if (!id) {
+                Espo.Ui.warning('Seleccione un factor primero');
+                return;
+            }
+            var item = this.catalogo.find(function (i) { return String(i.id) === String(id); });
+            if (!item) return;
+            
+            // Mostrar ventana para seleccionar tipo de impacto
+            this.preguntarTipoImpacto(item);
+            return;
+        }
+        
+        // Para otros tipos (decisiones, canales, planes)
         var $select = this.view.$el.find('#' + this._ids.selectId);
-        var id      = $select.val();
+        var id = $select.val();
         if (!id) {
             Espo.Ui.warning('Seleccione un ' + this.labelSingular + ' primero');
             return;
@@ -81,20 +201,21 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
         var item = this.catalogo.find(function (i) { return String(i.id) === String(id); });
         if (!item) return;
 
+        var newItem = { id: item.id, name: item.name };
+        if (this.tieneDescripcion) newItem.descripcion = item.descripcion || '';
+        if (this.tieneImpacto)    newItem.impacto      = item.impacto;
+        this.items.push(newItem);
+        
+        $select.val('');
+        this.renderizar();
+        this.poblarSelect();
         if (this.tipo === 'factor') {
-            this.preguntarTipoImpacto(item);
-        } else {
-            var newItem = { id: item.id, name: item.name };
-            if (this.tieneDescripcion) newItem.descripcion = item.descripcion || '';
-            if (this.tieneImpacto)    newItem.impacto      = item.impacto;
-            this.items.push(newItem);
-            $select.val('');
-            this.renderizar();
-            this.poblarSelect();
-            Espo.Ui.success(this.labelSingular + ' agregado');
+            this.actualizarTotalImpacto();
         }
+        Espo.Ui.success(this.labelSingular + ' agregado');
     };
-    
+
+    // Método para preguntar el tipo de impacto (positivo/negativo)
     ItemsManager.prototype.preguntarTipoImpacto = function (item) {
         var self = this;
         
@@ -112,7 +233,7 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
             '<h4 class="ave-modal-title"><i class="fas fa-question-circle"></i> Tipo de Impacto</h4>' +
             '</div>' +
             '<div class="modal-body" style="padding:24px;">' +
-            '<p><strong>' + self.escape(item.name) + '</strong></p>' +
+            '<p><strong>' + this.escape(item.name) + '</strong></p>' +
             '<div class="ave-form-group">' +
             '<label class="ave-form-label required">¿Cómo afecta este factor al precio?</label>' +
             '<div style="display:flex; gap:24px; margin-top:8px;">' +
@@ -135,7 +256,6 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
         
         $modal.on('hidden.bs.modal', function() {
             $modal.remove();
-            // Forzar remoción del backdrop
             if ($('.modal-backdrop').length) {
                 $('.modal-backdrop').remove();
             }
@@ -145,18 +265,25 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
         $modal.find('#btn-confirmar-factor-tipo').off('click').on('click', function() {
             var tipoImpacto = $modal.find('input[name="factor-tipo-impacto"]:checked').val();
             
+            var subtipoActual = self.getSubtipoInmueble();
             var newItem = { 
                 id: item.id, 
                 name: item.name,
-                tipo: tipoImpacto
+                tipo: tipoImpacto,
+                descripcion: subtipoActual
             };
-            if (self.tieneDescripcion) newItem.descripcion = item.descripcion || '';
             
+            // Agregar a items
             self.items.push(newItem);
+            
+            // Limpiar select
             $select.val('');
+            
+            // Renderizar tabla y actualizar select (esto quitará el item del select)
             self.renderizar();
-            self.poblarSelect();
+            self.poblarSelect();  // ← Esto actualizará el select eliminando el item agregado
             self.actualizarTotalImpacto();
+            
             Espo.Ui.success('Factor agregado como ' + (tipoImpacto === 'positivo' ? 'positivo' : 'negativo'));
             
             $modal.modal('hide');
@@ -167,16 +294,24 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
 
     ItemsManager.prototype.abrirModalNuevo = function () {
         var self = this;
+        
+        // Para factores, validar que haya inmueble seleccionado
+        if (this.tipo === 'factor') {
+            if (!this.validarInmueble()) return;
+        }
+        
         this.view.$el.find('#item-nombre').val('');
-        this.view.$el.find('#item-descripcion').val('');
-
-        if (this.tieneDescripcion) {
+        
+        // Para factores, ocultar el campo de descripción
+        if (this.tipo === 'factor') {
+            this.view.$el.find('#item-descripcion-group').hide();
+        } else if (this.tieneDescripcion) {
             this.view.$el.find('#item-descripcion-group').show();
+            this.view.$el.find('#item-descripcion').val('');
         } else {
             this.view.$el.find('#item-descripcion-group').hide();
         }
 
-        // Para factores, NO mostramos la opción de impacto porque se asigna después
         if (this.tieneImpacto && this.tipo !== 'factor') {
             this.view.$el.find('#item-impacto-group').show();
             this.view.$el.find('input[name="item-impacto"][value="positivo"]').prop('checked', true);
@@ -184,7 +319,30 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
             this.view.$el.find('#item-impacto-group').hide();
         }
 
-        this.view.$el.find('#item-predeterminado').prop('checked', false);
+        // Verificar si el usuario es administrador
+        var user = this.view.getUser();
+        var esAdmin = user.get('type') === 'admin';
+        var esCasaNacional = false;
+        
+        // Verificar roles para Casa Nacional
+        var roles = user.get('roles') || [];
+        for (var i = 0; i < roles.length; i++) {
+            if (roles[i].name && roles[i].name.toLowerCase().includes('casa nacional')) {
+                esCasaNacional = true;
+                break;
+            }
+        }
+        
+        var puedeCrearPredeterminado = esAdmin || esCasaNacional;
+        
+        if (puedeCrearPredeterminado) {
+            this.view.$el.find('#item-predeterminado-group').show();
+            this.view.$el.find('#item-predeterminado').prop('checked', false);
+        } else {
+            this.view.$el.find('#item-predeterminado-group').hide();
+            this.view.$el.find('#item-predeterminado').prop('checked', false);
+        }
+        
         this.view.$el.find('#modalItemTitulo').html(
             '<i class="fas fa-plus-circle"></i> Nuevo ' + this.labelSingular
         );
@@ -196,7 +354,6 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
         this.view.$el.find('#modalItem').modal({ backdrop: 'static', keyboard: true });
         setTimeout(function () { self.view.$el.find('#item-nombre').focus(); }, 400);
         
-        // Asegurar que al cerrar se quite el backdrop correctamente
         this.view.$el.find('#modalItem').off('hidden.bs.modal').on('hidden.bs.modal', function() {
             if ($('.modal-backdrop').length) {
                 $('.modal-backdrop').remove();
@@ -213,15 +370,32 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
             this.view.$el.find('#item-nombre').focus();
             return;
         }
+        
+        var esPredeterminado = this.view.$el.find('#item-predeterminado').is(':checked');
+        
         var data = {
             nombre:        nombre,
             tipo:          this.tipo,
-            descripcion:   this.tieneDescripcion ? this.view.$el.find('#item-descripcion').val() : '',
-            predeterminado: this.view.$el.find('#item-predeterminado').is(':checked'),
-            teamId:        this.view.teamId
+            descripcion:   '',
+            predeterminado: esPredeterminado,
+            teamId:        null  // Por defecto null
         };
         
-        // Para factores NO enviamos impacto al crear
+        // Solo guardar teamId si NO es predeterminado
+        if (!esPredeterminado && this.view.teamId) {
+            data.teamId = this.view.teamId;
+        }
+        
+        // Para factores, la descripción será el subtipo actual
+        if (this.tipo === 'factor') {
+            var subtipoActual = this.getSubtipoInmueble();
+            if (subtipoActual) {
+                data.descripcion = subtipoActual;
+            }
+        } else if (this.tieneDescripcion) {
+            data.descripcion = this.view.$el.find('#item-descripcion').val();
+        }
+        
         if (this.tieneImpacto && this.tipo !== 'factor') {
             data.impacto = this.view.$el.find('input[name="item-impacto"]:checked').val();
         }
@@ -238,7 +412,7 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
                     if (self.tipo === 'factor') {
                         self.catalogo.push(nuevo);
                         self.poblarSelect();
-                        // Preguntar el tipo de impacto para este nuevo factor
+                        // Mostrar ventana para seleccionar tipo de impacto
                         self.preguntarTipoImpacto(nuevo);
                     } else {
                         var newItem = { id: nuevo.id, name: nuevo.name };
@@ -263,12 +437,14 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
     };
 
     ItemsManager.prototype.quitar = function (idx) {
+        console.log('Quitando factor índice:', idx);
         this.items.splice(idx, 1);
         this.renderizar();
-        this.poblarSelect();
+        this.poblarSelect();  // ← Esto hará que el factor vuelva a aparecer en el select
         if (this.tipo === 'factor') {
             this.actualizarTotalImpacto();
         }
+        Espo.Ui.success(this.labelSingular + ' eliminado');
     };
     
     ItemsManager.prototype.actualizarTotalImpacto = function () {
@@ -318,7 +494,8 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
         this.items.forEach(function (item, idx) {
             var $tr = $('<tr>');
             
-            $tr.append($('<td>').css('font-weight', '600').text(item.name));
+            var nombreMostrar = item.name;
+            $tr.append($('<td>').css('font-weight', '600').text(nombreMostrar));
             
             if (self.tipo === 'factor') {
                 var esPositivo = (item.tipo || 'positivo') === 'positivo';
@@ -361,11 +538,13 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
 
     ItemsManager.prototype.getData = function () {
         if (this.tipo === 'factor') {
+            console.log('Factores a guardar:', this.items);
             return this.items.map(function (i) {
                 return {
                     factorCatalogoId: i.id,
                     name: i.name,
-                    tipo: i.tipo || 'positivo'
+                    tipo: i.tipo || 'positivo',
+                    descripcion: i.descripcion
                 };
             });
         }

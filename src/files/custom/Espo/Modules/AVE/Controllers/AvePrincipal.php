@@ -12,38 +12,22 @@ class AvePrincipal extends RecordBase
     public function getActionGetLista(Request $request, Response $response): array
     {
         try {
-            $pagina    = (int)($request->getQueryParam('pagina')         ?? 1);
-            $porPagina = (int)($request->getQueryParam('porPagina')      ?? 20);
-            $asesor    = $request->getQueryParam('asesor')                ?? '';
-            $status    = $request->getQueryParam('status')                ?? '';
-            $claId     = $request->getQueryParam('claId')                 ?? '';
-            $oficinaId = $request->getQueryParam('oficinaId')             ?? '';
-            $userId    = $request->getQueryParam('userId')                ?? '';
-
-            $GLOBALS['log']->info('getActionGetLista llamado con parámetros: ' . json_encode([
-                'pagina' => $pagina,
-                'porPagina' => $porPagina,
-                'asesor' => $asesor,
-                'status' => $status,
-                'claId' => $claId,
-                'oficinaId' => $oficinaId,
-                'userId' => $userId
-            ]));
+            $pagina    = (int)($request->getQueryParam('pagina')    ?? 1);
+            $porPagina = (int)($request->getQueryParam('porPagina') ?? 20);
+            $asesor    = $request->getQueryParam('asesor')           ?? '';
+            $status    = $request->getQueryParam('status')           ?? '';
+            $claId     = $request->getQueryParam('claId')            ?? '';
+            $oficinaId = $request->getQueryParam('oficinaId')        ?? '';
+            $userId    = $request->getQueryParam('userId')           ?? '';
 
             $result = $this->getServiceFactory()->create('AvePrincipal')
                 ->getLista($pagina, $porPagina, $asesor, $status, $claId, $oficinaId, $userId);
-            
-            $GLOBALS['log']->info('getActionGetLista resultado: ' . json_encode($result));
-            
+
             return $result;
-            
+
         } catch (\Exception $e) {
             $GLOBALS['log']->error('Error en getActionGetLista: ' . $e->getMessage());
-            $GLOBALS['log']->error($e->getTraceAsString());
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            return ['success' => false, 'error' => $e->getMessage()];
         }
     }
 
@@ -77,8 +61,9 @@ class AvePrincipal extends RecordBase
     {
         $tipo   = $request->getQueryParam('tipo');
         $teamId = $request->getQueryParam('teamId') ?? null;
+        $descripcion = $request->getQueryParam('descripcion') ?? null;
         if (!$tipo) throw new BadRequest("Parámetro 'tipo' requerido.");
-        return $this->getServiceFactory()->create('AvePrincipal')->getFactoresPorTipo($tipo, $teamId);
+        return $this->getServiceFactory()->create('AvePrincipal')->getFactoresPorTipo($tipo, $teamId, $descripcion);
     }
 
     public function postActionCambiarStatus(Request $request, Response $response): array
@@ -120,47 +105,37 @@ class AvePrincipal extends RecordBase
             return ['success' => false, 'error' => 'claId es requerido'];
         }
 
-        $em  = $this->getContainer()->get('entityManager');
-        $pdo = $em->getPDO();
+        $pdo = $this->getContainer()->get('entityManager')->getPDO();
 
         try {
             $stmt = $pdo->prepare("
-                SELECT DISTINCT entity_id FROM entity_team
-                WHERE team_id = :claId AND entity_type = 'AvePrincipal' AND deleted = 0
-                LIMIT 5000
+                SELECT DISTINCT t.id, TRIM(t.name) as name
+                FROM team_user tu
+                INNER JOIN team t ON tu.team_id = t.id
+                WHERE tu.user_id IN (
+                    SELECT DISTINCT u.id
+                    FROM team_user tu2
+                    INNER JOIN `user` u ON tu2.user_id = u.id
+                    WHERE tu2.team_id = :claId
+                    AND tu2.deleted = 0
+                    AND u.deleted = 0
+                    AND u.is_active = 1
+                )
+                AND tu.deleted = 0
+                AND t.deleted = 0
+                AND t.id NOT LIKE 'CLA%'
+                AND TRIM(t.name) != ''
+                ORDER BY t.name ASC
             ");
             $stmt->execute(['claId' => $claId]);
-            $aveIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
-
-            if (empty($aveIds)) {
-                return ['success' => true, 'data' => []];
-            }
-
-            $oficinasMap = [];
-            foreach ($aveIds as $aid) {
-                $stmt2 = $pdo->prepare("
-                    SELECT DISTINCT et.team_id, t.name
-                    FROM entity_team et
-                    INNER JOIN team t ON et.team_id = t.id
-                    WHERE et.entity_id = :aveId
-                    AND et.entity_type = 'AvePrincipal'
-                    AND et.deleted = 0
-                    AND t.id NOT LIKE 'CLA%'
-                    AND t.id != '1'
-                ");
-                $stmt2->execute(['aveId' => $aid]);
-                $rows = $stmt2->fetchAll(\PDO::FETCH_ASSOC);
-                foreach ($rows as $row) {
-                    $tid = $row['team_id'];
-                    $oficinasMap[$tid] = $row['name'];
-                }
-            }
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
             $oficinas = [];
-            foreach ($oficinasMap as $id => $name) {
-                $oficinas[] = ['id' => $id, 'name' => $name];
+            foreach ($rows as $row) {
+                if (!empty($row['name'])) {
+                    $oficinas[] = ['id' => $row['id'], 'name' => $row['name']];
+                }
             }
-            usort($oficinas, fn($a, $b) => strcmp($a['name'], $b['name']));
 
             return ['success' => true, 'data' => $oficinas];
 
@@ -177,43 +152,26 @@ class AvePrincipal extends RecordBase
             return ['success' => false, 'error' => 'oficinaId es requerido'];
         }
 
-        $em  = $this->getContainer()->get('entityManager');
-        $pdo = $em->getPDO();
+        $pdo = $this->getContainer()->get('entityManager')->getPDO();
 
         try {
             $stmt = $pdo->prepare("
-                SELECT DISTINCT entity_id FROM entity_team
-                WHERE team_id = :oficinaId AND entity_type = 'AvePrincipal' AND deleted = 0
-                LIMIT 5000
+                SELECT DISTINCT u.id, CONCAT(u.first_name, ' ', u.last_name) as name
+                FROM team_user tu
+                INNER JOIN `user` u ON tu.user_id = u.id
+                WHERE tu.team_id = :oficinaId
+                AND tu.deleted = 0
+                AND u.deleted = 0
+                AND u.is_active = 1
+                ORDER BY name ASC
             ");
             $stmt->execute(['oficinaId' => $oficinaId]);
-            $aveIds = $stmt->fetchAll(\PDO::FETCH_COLUMN);
-
-            if (empty($aveIds)) {
-                return ['success' => true, 'data' => []];
-            }
-
-            $asesoresMap = [];
-            foreach ($aveIds as $aid) {
-                $stmt2 = $pdo->prepare("
-                    SELECT assigned_user FROM ave_principal WHERE id = :aveId AND deleted = 0
-                ");
-                $stmt2->execute(['aveId' => $aid]);
-                $row = $stmt2->fetch(\PDO::FETCH_ASSOC);
-                if ($row && !empty($row['assigned_user']) && !isset($asesoresMap[$row['assigned_user']])) {
-                    $userId = $row['assigned_user'];
-                    $user = $em->getEntityById('User', $userId);
-                    if ($user && !$user->get('deleted') && $user->get('isActive')) {
-                        $asesoresMap[$userId] = $user->get('name');
-                    }
-                }
-            }
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
 
             $asesores = [];
-            foreach ($asesoresMap as $id => $name) {
-                $asesores[] = ['id' => $id, 'name' => $name];
+            foreach ($rows as $row) {
+                $asesores[] = ['id' => $row['id'], 'name' => $row['name']];
             }
-            usort($asesores, fn($a, $b) => strcmp($a['name'], $b['name']));
 
             return ['success' => true, 'data' => $asesores];
 
@@ -232,7 +190,6 @@ class AvePrincipal extends RecordBase
 
             $file = $_FILES['file'];
 
-            // Validar tipo de archivo
             $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
             if (!in_array($file['type'], $allowedTypes)) {
                 throw new BadRequest("Tipo de archivo no permitido. Solo se aceptan imágenes JPG, PNG, GIF o WEBP.");
@@ -244,7 +201,6 @@ class AvePrincipal extends RecordBase
 
             $em = $this->getEntityManager();
 
-            // Crear entidad Attachment
             $attachment = $em->getNewEntity('Attachment');
             $attachment->set([
                 'name'        => $name,
@@ -256,16 +212,10 @@ class AvePrincipal extends RecordBase
             ]);
             $em->saveEntity($attachment);
 
-            // Usar el FileStorageManager de EspoCRM si está disponible,
-            // si no, construir la ruta de forma segura
             $attachmentId = $attachment->getId();
+            $rootDir      = dirname(__DIR__, 5);
+            $uploadDir    = $rootDir . '/data/upload/';
 
-            // Buscar la raíz de EspoCRM subiendo desde el directorio del controlador
-            // Estructura: custom/Espo/Modules/AVE/Controllers/ → subir 5 niveles
-            $rootDir = dirname(__DIR__, 5); // Controllers → AVE → Modules → Espo → custom → raíz
-            $uploadDir = $rootDir . '/data/upload/';
-
-            // Verificar que el directorio existe
             if (!is_dir($uploadDir)) {
                 if (!mkdir($uploadDir, 0775, true)) {
                     $em->removeEntity($attachment);
@@ -273,7 +223,6 @@ class AvePrincipal extends RecordBase
                 }
             }
 
-            // Verificar que el directorio es escribible
             if (!is_writable($uploadDir)) {
                 $em->removeEntity($attachment);
                 throw new BadRequest("El directorio de uploads no tiene permisos de escritura: " . $uploadDir);
@@ -286,15 +235,11 @@ class AvePrincipal extends RecordBase
                 throw new BadRequest("No se pudo guardar el archivo. Ruta intentada: " . $targetPath);
             }
 
-            $GLOBALS['log']->info('AVE uploadFoto: archivo guardado en ' . $targetPath . ' (ID: ' . $attachmentId . ')');
-
             return ['success' => true, 'id' => $attachmentId, 'name' => $name];
 
         } catch (BadRequest $e) {
-            $GLOBALS['log']->error('AVE uploadFoto BadRequest: ' . $e->getMessage());
             throw $e;
         } catch (\Exception $e) {
-            $GLOBALS['log']->error('AVE uploadFoto Exception: ' . $e->getMessage() . ' en ' . $e->getFile() . ':' . $e->getLine());
             throw new BadRequest("Error interno al subir foto: " . $e->getMessage());
         }
     }
@@ -303,68 +248,54 @@ class AvePrincipal extends RecordBase
     {
         try {
             $data = $request->getParsedBody();
-            $GLOBALS['log']->info('=== RECALCULAR PRECIOS ===');
-            $GLOBALS['log']->info('Datos recibidos: ' . json_encode($data));
-            
+
             if (empty($data->aveId)) {
                 throw new BadRequest("Parámetro 'aveId' requerido.");
             }
-            
+
             $service = $this->getServiceFactory()->create('AvePrincipal');
-            
-            $em = $this->getEntityManager();
-            $entity = $em->getEntity('AvePrincipal', $data->aveId);
-            
+            $em      = $this->getEntityManager();
+            $entity  = $em->getEntity('AvePrincipal', $data->aveId);
+
             if (!$entity) {
                 throw new NotFound("AVE no encontrado: " . $data->aveId);
             }
-            
-            $GLOBALS['log']->info('Peso Ofertas actual: ' . $entity->get('pesoOfertas'));
-            $GLOBALS['log']->info('Ajuste Precio actual: ' . $entity->get('ajustePrecio'));
-            
+
             if (property_exists($data, 'pesoOfertas')) {
-                $GLOBALS['log']->info('Actualizando pesoOfertas a: ' . $data->pesoOfertas);
                 $entity->set('pesoOfertas', (float)$data->pesoOfertas);
-                $entity->set('pesoVentas', 100 - (float)$data->pesoOfertas);
+                $entity->set('pesoVentas',  100 - (float)$data->pesoOfertas);
                 $em->saveEntity($entity);
             }
-            
+
             if (property_exists($data, 'ajustePrecio')) {
-                $GLOBALS['log']->info('Actualizando ajustePrecio a: ' . $data->ajustePrecio);
                 $entity->set('ajustePrecio', (float)$data->ajustePrecio);
                 $em->saveEntity($entity);
             }
-            
-            // Recalcular precios
+
             $service->recalcularPreciosParaEntity($entity);
-            
-            // Recargar la entidad para obtener los valores actualizados
+
             $entity = $em->getEntity('AvePrincipal', $data->aveId);
-            
-            $result = [
+
+            return [
                 'success' => true,
-                'data' => [
-                    'valorMax' => $entity->get('valorMax'),
-                    'valorMin' => $entity->get('valorMin'),
+                'data'    => [
+                    'valorMax'      => $entity->get('valorMax'),
+                    'valorMin'      => $entity->get('valorMin'),
                     'valorPromedio' => $entity->get('valorPromedio'),
-                    'precioMax' => $entity->get('precioMax'),
-                    'precioMin' => $entity->get('precioMin'),
-                    'precioOriginal' => $entity->get('precioOriginal'),
-                    'precioSugerido' => $entity->get('precioSugerido'),
-                    'rangoPrecioMin' => $entity->get('rangoPrecioMin'),
-                    'rangoPrecioMax' => $entity->get('rangoPrecioMax'),
-                    'pesoOfertas' => $entity->get('pesoOfertas'),
-                    'pesoVentas' => $entity->get('pesoVentas'),
-                    'ajustePrecio' => $entity->get('ajustePrecio')
-                ]
+                    'precioMax'     => $entity->get('precioMax'),
+                    'precioMin'     => $entity->get('precioMin'),
+                    'precioOriginal'=> $entity->get('precioOriginal'),
+                    'precioSugerido'=> $entity->get('precioSugerido'),
+                    'rangoPrecioMin'=> $entity->get('rangoPrecioMin'),
+                    'rangoPrecioMax'=> $entity->get('rangoPrecioMax'),
+                    'pesoOfertas'   => $entity->get('pesoOfertas'),
+                    'pesoVentas'    => $entity->get('pesoVentas'),
+                    'ajustePrecio'  => $entity->get('ajustePrecio'),
+                ],
             ];
-            
-            $GLOBALS['log']->info('Resultado enviado: ' . json_encode($result));
-            
-            return $result;
+
         } catch (\Exception $e) {
             $GLOBALS['log']->error('Error en recalcularPrecios: ' . $e->getMessage());
-            $GLOBALS['log']->error($e->getTraceAsString());
             throw new BadRequest($e->getMessage());
         }
     }
@@ -382,45 +313,45 @@ class AvePrincipal extends RecordBase
             return ['success' => false, 'error' => 'Usuario no encontrado'];
         }
 
-        $teamIds = []; 
-        $claUsuario = null; 
-        $claNombre = null;
+        $teamIds        = [];
+        $claUsuario     = null;
+        $claNombre      = null;
         $oficinaUsuario = null;
-        $oficinaNombre = null;
-        
+        $oficinaNombre  = null;
+
         $teams = $em->getRelation($user, 'teams')->find();
         if ($teams) {
             foreach ($teams as $team) {
-                $id = $team->getId();
+                $id   = $team->getId();
                 $name = $team->get('name');
                 $teamIds[] = $id;
-                
+
                 if (strpos($id, 'CLA') === 0) {
                     $claUsuario = $id;
-                    $claNombre = $name;
+                    $claNombre  = $name;
                 } else {
                     if (!$oficinaUsuario) {
                         $oficinaUsuario = $id;
-                        $oficinaNombre = $name;
+                        $oficinaNombre  = $name;
                     }
                 }
             }
         }
-        
+
         if (!$oficinaUsuario) {
             $dtId = $user->get('defaultTeamId');
             if ($dtId && strpos($dtId, 'CLA') !== 0) {
                 $oficinaUsuario = $dtId;
-                $teamDefault = $em->getEntityById('Team', $dtId);
-                $oficinaNombre = $teamDefault ? $teamDefault->get('name') : null;
+                $teamDefault    = $em->getEntityById('Team', $dtId);
+                $oficinaNombre  = $teamDefault ? $teamDefault->get('name') : null;
             }
         }
 
         $esCasaNacional = false;
-        $esGerente = false;
-        $esDirector = false;
-        $esCoordinador = false;
-        
+        $esGerente      = false;
+        $esDirector     = false;
+        $esCoordinador  = false;
+
         $roles = $em->getRelation($user, 'roles')->find();
         if ($roles) {
             foreach ($roles as $role) {
@@ -429,27 +360,24 @@ class AvePrincipal extends RecordBase
                     $esCasaNacional = true;
                 }
                 if (!$esCasaNacional) {
-                    if (str_contains($n, 'gerente')) $esGerente = true;
-                    if (str_contains($n, 'director')) $esDirector = true;
+                    if (str_contains($n, 'gerente'))     $esGerente     = true;
+                    if (str_contains($n, 'director'))    $esDirector    = true;
                     if (str_contains($n, 'coordinador')) $esCoordinador = true;
                 }
             }
         }
 
-        $esAdminType = $user->get('type') === 'admin';
+        $esAdminType           = $user->get('type') === 'admin';
         $tienePoderCasaNacional = $esAdminType || $esCasaNacional;
-        $tieneRolesGestion = !$tienePoderCasaNacional && ($esGerente || $esDirector || $esCoordinador);
-        $esAsesorPuro = $user->get('type') === 'regular' && !$tieneRolesGestion && !$tienePoderCasaNacional;
+        $tieneRolesGestion      = !$tienePoderCasaNacional && ($esGerente || $esDirector || $esCoordinador);
+        $esAsesorPuro           = $user->get('type') === 'regular' && !$tieneRolesGestion && !$tienePoderCasaNacional;
 
-        // Obtener CLAs disponibles para casa nacional
+        // CLAs disponibles para casa nacional
         $clasDisponibles = [];
         if ($tienePoderCasaNacional) {
             $clas = $em->getRepository('Team')
                 ->select(['id', 'name'])
-                ->where([
-                    'deleted' => false,
-                    'id*' => 'CLA%'
-                ])
+                ->where(['deleted' => false, 'id*' => 'CLA%'])
                 ->find();
             foreach ($clas as $cla) {
                 $clasDisponibles[] = ['id' => $cla->getId(), 'name' => $cla->get('name')];
@@ -458,25 +386,23 @@ class AvePrincipal extends RecordBase
         }
 
         return ['success' => true, 'data' => [
-            'usuarioId'       => $userId,
-            'userType'        => $user->get('type'),
-            'userName'        => $user->get('name'),
-            'esCasaNacional'  => $tienePoderCasaNacional,
-            'esGerente'       => $esGerente,
-            'esDirector'      => $esDirector,
-            'esCoordinador'   => $esCoordinador,
+            'usuarioId'         => $userId,
+            'userType'          => $user->get('type'),
+            'userName'          => $user->get('name'),
+            'esCasaNacional'    => $tienePoderCasaNacional,
+            'esGerente'         => $esGerente,
+            'esDirector'        => $esDirector,
+            'esCoordinador'     => $esCoordinador,
             'tieneRolesGestion' => $tieneRolesGestion,
-            'esAsesor'        => $esAsesorPuro,
-            'claUsuario'      => $claUsuario,
-            'claNombre'       => $claNombre,
-            'oficinaUsuario'  => $oficinaUsuario,
-            'oficinaNombre'   => $oficinaNombre,
-            'teamIds'         => $teamIds,
-            'clasDisponibles' => $clasDisponibles
+            'esAsesor'          => $esAsesorPuro,
+            'claUsuario'        => $claUsuario,
+            'claNombre'         => $claNombre,
+            'oficinaUsuario'    => $oficinaUsuario,
+            'oficinaNombre'     => $oficinaNombre,
+            'teamIds'           => $teamIds,
+            'clasDisponibles'   => $clasDisponibles,
         ]];
     }
-
-
 
     protected function getEntityManager(): \Espo\ORM\EntityManager
     {

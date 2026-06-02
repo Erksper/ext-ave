@@ -106,6 +106,10 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                         self.permisos = response.data;
                         self.aplicarVisibilidadFiltros();
                         self.cargarSelectsIniciales();
+                        
+                        // ← NUEVO: Aplicar filtros según el rol del usuario ANTES de cargar la lista
+                        self.aplicarFiltrosPorRol();
+                        
                         self.cargarLista();
                     } else {
                         console.error('Error al cargar permisos:', response.error);
@@ -116,6 +120,67 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                     console.error('Error en petición de permisos:', error);
                     self.cargarLista();
                 });
+        },
+
+        aplicarFiltrosPorRol: function () {
+            if (!this.permisos) return;
+            
+            // Resetear filtros
+            this.filtros = {
+                cla: null,
+                oficina: null,
+                asesor: null,
+                status: null
+            };
+            
+            // Aplicar filtros según el rol
+            if (this.permisos.esAsesor) {
+                // Asesor: solo sus propios AVEs
+                this.filtros.asesor = this.currentUserId;
+                console.log('Asesor - Filtrando por:', this.filtros.asesor);
+                
+            } else if (this.permisos.tieneRolesGestion && !this.permisos.esCasaNacional) {
+                // Director/Gerente: AVEs de su oficina
+                if (this.permisos.oficinaUsuario) {
+                    this.filtros.oficina = this.permisos.oficinaUsuario;
+                    console.log('Director/Gerente - Filtrando por oficina:', this.filtros.oficina);
+                }
+                
+            } else if (this.permisos.esCasaNacional) {
+                // Casa Nacional/Admin: ver todos (sin filtros automáticos)
+                console.log('Casa Nacional - Sin filtros automáticos');
+            }
+            
+            // Actualizar los selects con los valores filtrados
+            this.actualizarSelectsSegunFiltros();
+        },
+
+        actualizarSelectsSegunFiltros: function () {
+            // Si es asesor, deshabilitar los selects de CLA y oficina
+            if (this.permisos && this.permisos.esAsesor) {
+                this.$el.find('#filtro-cla').prop('disabled', true);
+                this.$el.find('#filtro-oficina').prop('disabled', true);
+                this.$el.find('#filtro-asesor').prop('disabled', true);
+                this.$el.find('#filtro-asesor').val(this.currentUserId);
+            }
+            
+            // Si es director/gerente, deshabilitar CLA y mostrar su oficina
+            if (this.permisos && this.permisos.tieneRolesGestion && !this.permisos.esCasaNacional) {
+                this.$el.find('#filtro-cla').prop('disabled', true);
+                this.$el.find('#filtro-oficina').prop('disabled', true);
+                if (this.permisos.oficinaNombre) {
+                    this.$el.find('#filtro-oficina').html('<option value="' + this.permisos.oficinaUsuario + '">' + this.escape(this.permisos.oficinaNombre) + '</option>');
+                    this.$el.find('#filtro-oficina').val(this.permisos.oficinaUsuario);
+                }
+                this.$el.find('#filtro-asesor').prop('disabled', false);
+            }
+            
+            // Si es casa nacional, todos los filtros están habilitados
+            if (this.permisos && this.permisos.esCasaNacional) {
+                this.$el.find('#filtro-cla').prop('disabled', false);
+                this.$el.find('#filtro-oficina').prop('disabled', false);
+                this.$el.find('#filtro-asesor').prop('disabled', false);
+            }
         },
 
         aplicarVisibilidadFiltros: function () {
@@ -169,20 +234,23 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
             var $asesorSelect = this.$el.find('#filtro-asesor');
             
             if (!claId) {
-                $oficinaSelect.html('<option value="">Seleccione un CLA primero</option>').prop('disabled', true);
-                $asesorSelect.html('<option value="">Seleccione una oficina primero</option>').prop('disabled', true);
+                $oficinaSelect.html('<option value="">Todas las oficinas</option>').prop('disabled', false);
+                $asesorSelect.html('<option value="">Todos los asesores</option>').prop('disabled', false);
                 return;
             }
             
             $oficinaSelect.html('<option value="">Cargando oficinas...</option>').prop('disabled', true);
-            $asesorSelect.html('<option value="">Seleccione una oficina primero</option>').prop('disabled', true);
+            $asesorSelect.html('<option value="">Seleccione una oficina</option>').prop('disabled', true);
             
             Espo.Ajax.getRequest('AvePrincipal/action/getOficinasByCLA', { claId: claId })
                 .then(function (response) {
                     if (response.success && response.data) {
-                        $oficinaSelect.empty().append('<option value="">Todas las oficinas</option>');
+                        $oficinaSelect.empty();
+                        $oficinaSelect.append('<option value="">Todas las oficinas</option>');
                         response.data.forEach(function (oficina) {
-                            $oficinaSelect.append('<option value="' + oficina.id + '">' + self.escape(oficina.name) + '</option>');
+                            if (oficina.id && oficina.name && oficina.name.trim() !== '') {
+                                $oficinaSelect.append('<option value="' + oficina.id + '">' + self.escape(oficina.name.trim()) + '</option>');
+                            }
                         });
                         $oficinaSelect.prop('disabled', false);
                     } else {
@@ -195,7 +263,7 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
         },
 
         onOficinaChange: function (oficinaId) {
-            if (oficinaId) {
+            if (oficinaId && oficinaId !== '') {
                 this.cargarAsesoresPorOficina(oficinaId);
             } else {
                 var $asesorSelect = this.$el.find('#filtro-asesor');
@@ -207,18 +275,26 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
             var self = this;
             var $asesorSelect = this.$el.find('#filtro-asesor');
             
+            if (!oficinaId || oficinaId === '') {
+                $asesorSelect.html('<option value="">Todos los asesores</option>').prop('disabled', false);
+                return;
+            }
+            
             $asesorSelect.html('<option value="">Cargando asesores...</option>').prop('disabled', true);
             
             Espo.Ajax.getRequest('AvePrincipal/action/getAsesoresByOficina', { oficinaId: oficinaId })
                 .then(function (response) {
                     if (response.success && response.data && response.data.length) {
-                        $asesorSelect.empty().append('<option value="">Todos los asesores</option>');
+                        $asesorSelect.empty();
+                        $asesorSelect.append('<option value="">Todos los asesores</option>');
                         response.data.forEach(function (asesor) {
-                            $asesorSelect.append('<option value="' + asesor.id + '">' + self.escape(asesor.name) + '</option>');
+                            if (asesor.id && asesor.name && asesor.name.trim() !== '') {
+                                $asesorSelect.append('<option value="' + asesor.id + '">' + self.escape(asesor.name.trim()) + '</option>');
+                            }
                         });
                         $asesorSelect.prop('disabled', false);
                     } else {
-                        $asesorSelect.html('<option value="">No hay asesores en esta oficina</option>').prop('disabled', false);
+                        $asesorSelect.html('<option value="">No hay asesores</option>').prop('disabled', false);
                     }
                 })
                 .catch(function () {
@@ -231,19 +307,30 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
         },
 
         aplicarFiltrosYRecargar: function () {
+            var claVal = this.$el.find('#filtro-cla').val();
+            var oficinaVal = this.$el.find('#filtro-oficina').val();
+            var asesorVal = this.$el.find('#filtro-asesor').val();
+            var statusVal = this.$el.find('#filtro-status').val();
+            
             this.filtros = {
-                cla: this.$el.find('#filtro-cla').val() || null,
-                oficina: this.$el.find('#filtro-oficina').val() || null,
-                asesor: this.$el.find('#filtro-asesor').val() || null,
-                status: this.$el.find('#filtro-status').val() || null
+                cla: (claVal && claVal !== '') ? claVal : null,
+                oficina: (oficinaVal && oficinaVal !== '') ? oficinaVal : null,
+                asesor: (asesorVal && asesorVal !== '') ? asesorVal : null,
+                status: (statusVal && statusVal !== '') ? statusVal : null
             };
             
-            if (this.permisos) {
-                if (this.permisos.esAsesor) {
-                    this.filtros.asesor = this.currentUserId;
-                    this.filtros.cla = null;
-                    this.filtros.oficina = null;
-                } else if (this.permisos.tieneRolesGestion && !this.permisos.esCasaNacional) {
+            console.log('Filtros aplicados:', this.filtros);
+            
+            // Si es Asesor, forzar su ID
+            if (this.permisos && this.permisos.esAsesor) {
+                this.filtros.asesor = this.currentUserId;
+                this.filtros.cla = null;
+                this.filtros.oficina = null;
+            }
+            
+            // Si tiene roles de gestión (Director/Gerente), forzar su oficina
+            if (this.permisos && this.permisos.tieneRolesGestion && !this.permisos.esCasaNacional) {
+                if (this.permisos.oficinaUsuario) {
                     this.filtros.oficina = this.permisos.oficinaUsuario;
                     this.filtros.cla = null;
                 }
@@ -254,11 +341,23 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
         },
 
         limpiarFiltros: function () {
+            // Limpiar selects visualmente
             this.$el.find('#filtro-status').val('');
-            this.$el.find('#filtro-cla').val('').trigger('change');
-            this.$el.find('#filtro-oficina').val('').html('<option value="">Seleccione un CLA primero</option>').prop('disabled', true);
-            this.$el.find('#filtro-asesor').val('').html('<option value="">Seleccione una oficina primero</option>').prop('disabled', true);
-            this.filtros = { cla: null, oficina: null, asesor: null, status: null };
+            
+            // Aplicar filtros por rol nuevamente (no limpiar completamente)
+            this.aplicarFiltrosPorRol();
+            
+            // Si es casa nacional, además limpiar los selects de CLA y oficina
+            if (this.permisos && this.permisos.esCasaNacional) {
+                this.$el.find('#filtro-cla').val('');
+                this.$el.find('#filtro-oficina').empty().append('<option value="">Todas las oficinas</option>').prop('disabled', false);
+                this.$el.find('#filtro-asesor').empty().append('<option value="">Todos los asesores</option>').prop('disabled', false);
+                this.filtros.cla = null;
+                this.filtros.oficina = null;
+                this.filtros.asesor = null;
+            }
+            
+            this.filtros.status = null;
             this.pagina = 1;
             this.cargarLista();
         },
@@ -266,6 +365,7 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
         cargarLista: function () {
             var self = this;
             console.log('cargarLista() - Página:', this.pagina, 'Por página:', this.porPagina);
+            console.log('Filtros actuales:', this.filtros);
             
             this.$el.find('#ave-list-loading').show();
             this.$el.find('#ave-list-content').hide();
@@ -299,6 +399,7 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                     } else {
                         console.error('Error en respuesta:', response.error);
                         Espo.Ui.error(response.error || 'Error al cargar la lista');
+                        self.$el.find('#ave-list-content').show();
                     }
                 })
                 .catch(function (error) {
@@ -484,22 +585,38 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
         },
 
         crearNuevo: function () {
-            console.log('crearNuevo() - Usuario actual:', this.currentUserId);
             var self = this;
+            var userId = this.currentUserId;
             
+            console.log('crearNuevo() - Usuario actual:', userId);
+            
+            // Método 1: Usar Espo.Ajax directamente (ya funcionaba antes)
             Espo.Ajax.postRequest('AvePrincipal', { 
                 name: 'Nuevo AVE',
-                assignedUserId: this.currentUserId,
-                assignedUserName: this.currentUserName
+                assignedUserId: userId
             })
             .then(function (response) {
+                console.log('Respuesta creación:', response);
                 if (response && response.id) {
                     self.getRouter().navigate('#AvePrincipal/view/' + response.id, { trigger: true });
+                } else if (response && response.success === false) {
+                    Espo.Ui.error(response.error || 'No se pudo crear el avalúo');
                 } else {
-                    Espo.Ui.error('No se pudo crear el avalúo');
+                    Espo.Ui.error('No se pudo crear el avalúo: respuesta inválida');
                 }
-            }).catch(function () { 
-                Espo.Ui.error('Error al crear el avalúo'); 
+            })
+            .catch(function (error) {
+                console.error('Error en creación:', error);
+                var errorMsg = '';
+                try {
+                    if (error.responseText) {
+                        var parsed = JSON.parse(error.responseText);
+                        errorMsg = parsed.error || parsed.message || 'Error desconocido';
+                    }
+                } catch(e) {
+                    errorMsg = error.statusText || 'Error de conexión';
+                }
+                Espo.Ui.error('Error al crear el avalúo: ' + errorMsg);
             });
         },
 

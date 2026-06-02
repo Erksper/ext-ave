@@ -29,8 +29,20 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
             Espo.Ui.warning('Máximo ' + MAX_REFS + ' referencias permitidas');
             return;
         }
+        
         var titulo = tipo === 'promocion' ? 'Referencia en Promoción' : 'Referencia Vendida';
-        this.view.$el.find('#modal-ref-titulo').html('<i class="fas fa-tag"></i> ' + titulo + (idx !== null ? ' — Editar' : ' — Nueva'));
+        var labelValor = tipo === 'vendido' ? 'Valor de Venta (USD)' : 'Valor Referencial (USD)';
+        
+        // Cambiar el título del modal
+        this.view.$el.find('#modal-ref-titulo-text').text(titulo);
+        this.view.$el.find('.modal-title i').attr('class', tipo === 'promocion' ? 'fas fa-tag' : 'fas fa-handshake');
+        
+        // Cambiar la etiqueta del campo valor referencial
+        this.view.$el.find('label[for="ref-valorReferencial"]').text(labelValor);
+        
+        // También cambiar el placeholder si lo deseas
+        this.view.$el.find('#ref-valorReferencial').attr('placeholder', labelValor);
+        
         this.view.$el.find('#ref-modal-tipo').val(tipo);
         this.view.$el.find('#ref-modal-idx').val(idx !== null ? idx : '');
 
@@ -41,7 +53,7 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
         }
 
         this.setupCalculoM2();
-        this.setupFoto();   // ← Vincular eventos de foto
+        this.setupFoto();
 
         this.view.$el.find('#btn-guardar-referencia').off('click').on('click', function () {
             self.guardarDesdeModal();
@@ -56,7 +68,11 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
         this.view.$el.find('#ref-valorReferencial, #ref-areaConstruida').off('input.ref').on('input.ref', function () {
             self.calcularM2();
         });
+        this.view.$el.find('#ref-subtipoPropiedad').off('change.ref').on('change.ref', function () {
+            self.actualizarEstadoAreaTerreno();
+        });
         this.calcularM2();
+        this.actualizarEstadoAreaTerreno();
     };
 
     ReferenciasManager.prototype.calcularM2 = function () {
@@ -64,6 +80,28 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
         var area = parseFloat(this.view.$el.find('#ref-areaConstruida').val()) || 0;
         var m2 = (precio > 0 && area > 0) ? (precio / area).toFixed(2) : '';
         this.view.$el.find('#ref-valorm2').val(m2);
+    };
+
+    // Actualizar estado del área de terreno según subtipo
+    ReferenciasManager.prototype.actualizarEstadoAreaTerreno = function () {
+        var subtipo = this.view.$el.find('#ref-subtipoPropiedad').val();
+        var $areaTerreno = this.view.$el.find('#ref-areaTerreno');
+        var $areaTerrenoGroup = $areaTerreno.closest('.col-md-4');
+        var subtiposSinTerreno = ['apartamento', 'oficinas', 'local', 'penthouse'];
+        var subtipoNormalizado = (subtipo || '').toLowerCase();
+        
+        // Remover mensaje existente
+        $areaTerrenoGroup.find('small.text-muted').remove();
+        
+        if (subtiposSinTerreno.indexOf(subtipoNormalizado) !== -1) {
+            $areaTerreno.prop('disabled', true);
+            $areaTerreno.val('');
+            $areaTerrenoGroup.css('opacity', '0.6');
+            $areaTerrenoGroup.append('<small class="text-muted" style="display:block; font-size:11px;">No aplica para este tipo de propiedad</small>');
+        } else {
+            $areaTerreno.prop('disabled', false);
+            $areaTerrenoGroup.css('opacity', '1');
+        }
     };
 
     // Validación
@@ -89,6 +127,12 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
         this.view.$el.find('#ref-seguridad').val('');
         this.view.$el.find('#ref-ascensores').prop('checked', false);
         this.view.$el.find('#ref-terraza').prop('checked', false);
+        
+        // Limpiar mensaje de área de terreno
+        var $areaTerrenoGroup = this.view.$el.find('#ref-areaTerreno').closest('.col-md-4');
+        $areaTerrenoGroup.find('small.text-muted').remove();
+        $areaTerrenoGroup.css('opacity', '1');
+        
         // Foto
         this.view.$el.find('#ref-foto').val('');
         this.view.$el.find('#ref-foto-id').val('');
@@ -116,6 +160,7 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
         set('ref-enlace', ref.enlace);
         this.view.$el.find('#ref-ascensores').prop('checked', !!ref.ascensores);
         this.view.$el.find('#ref-terraza').prop('checked', !!ref.terraza);
+        
         if (ref.fotoId) {
             this.view.$el.find('#ref-foto-id').val(ref.fotoId);
             var imgUrl = 'api/v1/Attachment/file/' + ref.fotoId;
@@ -124,7 +169,9 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
         } else {
             this.view.$el.find('#ref-foto-preview').hide();
         }
+        
         this.calcularM2();
+        this.actualizarEstadoAreaTerreno();
     };
 
     // Manejo de foto (subida inmediata con fetch para mayor control)
@@ -158,21 +205,19 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
             };
             reader.readAsDataURL(file);
 
-            // Subir al servidor — incluir credentials para la sesión de EspoCRM
+            // Subir al servidor
             var formData = new FormData();
             formData.append('file', file);
 
-            // Obtener el token CSRF de EspoCRM si existe
             var headers = {};
             var csrfToken = document.cookie.match(/ESPO_CSRF_TOKEN=([^;]+)/);
             if (csrfToken) {
                 headers['X-Csrf-Token'] = csrfToken[1];
             }
-            // EspoCRM también acepta autenticación básica por header en algunas versiones;
-            // credentials: 'same-origin' cubre la sesión por cookie
+            
             fetch('api/v1/AvePrincipal/action/uploadFoto', {
                 method: 'POST',
-                credentials: 'same-origin',   // ← CRÍTICO: enviar cookies de sesión
+                credentials: 'same-origin',
                 headers: headers,
                 body: formData
             })
@@ -187,19 +232,15 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
             .then(function (data) {
                 if (data.success && data.id) {
                     $fotoId.val(data.id);
-                    console.log('AVE: foto subida correctamente, ID:', data.id);
                     Espo.Ui.success('Foto cargada correctamente');
                 } else {
                     Espo.Ui.error('Error al subir la foto: ' + (data.error || 'respuesta inesperada'));
-                    console.error('AVE uploadFoto error:', data);
-                    // Limpiar preview si falla
                     $img.attr('src', '');
                     $preview.hide();
                     $file.val('');
                 }
             })
             .catch(function (error) {
-                console.error('AVE uploadFoto fetch error:', error);
                 Espo.Ui.error('Error de red al subir la foto: ' + error.message);
                 $img.attr('src', '');
                 $preview.hide();
@@ -267,13 +308,23 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
         Espo.Ui.success('Referencia eliminada');
     };
 
-    // Renderizar tarjetas (con foto, descripción, enlace)
+    // Método auxiliar para campos en grid
+    ReferenciasManager.prototype.fieldItem = function (label, value) {
+        return '<div class="ave-ref-field-item">' +
+            '<div class="ave-ref-field-label">' + label + '</div>' +
+            '<div class="ave-ref-field-value">' + this.escape(String(value)) + '</div>' +
+            '</div>';
+    };
+
+    // Renderizar tarjetas
     ReferenciasManager.prototype.renderizar = function (tipo) {
         var self = this;
         var items = this.items[tipo];
-        var listId  = tipo === 'promocion' ? 'refs-promocion-lista' : 'refs-vendido-lista';
-        var badgeId = tipo === 'promocion' ? 'badge-promocion'      : 'badge-vendido';
-        var btnId   = tipo === 'promocion' ? 'btn-add-promocion'    : 'btn-add-vendido';
+        var listId = tipo === 'promocion' ? 'refs-promocion-lista' : 'refs-vendido-lista';
+        var badgeId = tipo === 'promocion' ? 'badge-promocion' : 'badge-vendido';
+        var btnId = tipo === 'promocion' ? 'btn-add-promocion' : 'btn-add-vendido';
+        var esVendido = tipo === 'vendido';
+        var labelValor = esVendido ? 'Valor de Venta' : 'Valor Referencial';
 
         this.view.$el.find('#' + badgeId).text(items.length + ' / ' + MAX_REFS);
         var $addBtn = this.view.$el.find('#' + btnId);
@@ -281,108 +332,144 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
 
         if (items.length === 0) {
             this.view.$el.find('#' + listId).html(
-                '<div style="text-align:center; padding:20px; color:var(--ave-text-muted);">No hay referencias agregadas.</div>'
+                '<div style="text-align:center; padding:40px; color:var(--ave-text-muted);">' +
+                '<i class="fas fa-building" style="font-size:48px; margin-bottom:16px; display:block;"></i>' +
+                'No hay referencias agregadas.' +
+                '</div>'
             );
             return;
         }
 
         var html = '';
         items.forEach(function (ref, idx) {
-            var m2Display   = ref.valorm2 ? '$ ' + parseFloat(ref.valorm2).toFixed(2) + '/m²' : '-';
-            var calcBadge   = ref.usarCalculo
-                ? '<span class="ave-ref-calc-badge ave-ref-calc-si">En cálculo</span>'
-                : '<span class="ave-ref-calc-badge ave-ref-calc-no">Excluida</span>';
-            var fotoUrl     = ref.fotoId ? 'api/v1/Attachment/file/' + ref.fotoId : null;
-            var areaCon     = ref.areaConstruida ? parseFloat(ref.areaConstruida).toLocaleString('es-VE') + ' m²' : '-';
-            var areaTer     = ref.areaTerreno    ? parseFloat(ref.areaTerreno).toLocaleString('es-VE') + ' m²'    : '-';
+            var valorReferencial = parseFloat(ref.valorReferencial) || 0;
+            var areaConstruida = parseFloat(ref.areaConstruida) || 0;
+            var valorM2 = areaConstruida > 0 ? (valorReferencial / areaConstruida).toFixed(2) : 0;
+            var calcBadgeClass = ref.usarCalculo ? 'ave-ref-calc-si' : 'ave-ref-calc-no';
+            var calcBadgeText = ref.usarCalculo ? '✓ En cálculo' : '✗ Excluida';
+            var fotoUrl = ref.fotoId ? 'api/v1/Attachment/file/' + ref.fotoId : null;
+            
+            // Determinar si el área de terreno debe mostrarse (basado en subtipo)
+            var subtipo = (ref.subtipoPropiedad || '').toLowerCase();
+            var subtiposSinTerreno = ['apartamento', 'oficinas', 'local', 'penthouse'];
+            var mostrarAreaTerreno = subtiposSinTerreno.indexOf(subtipo) === -1;
 
             html += '<div class="ave-ref-card">';
-
-            // ── Header ──────────────────────────────────────────────────
-            html += '<div class="ave-ref-card-header">';
-
-            // Número + thumbnail foto
-            html += '<div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">';
+            
+            // Header
+            html += '<div class="ave-ref-card-header" data-action="toggle-ref-card" data-idx="' + idx + '">';
+            html += '<div class="ave-ref-card-header-left">';
             html += '<span class="ave-ref-card-num">' + (idx + 1) + '</span>';
+            
             if (fotoUrl) {
                 html += '<img src="' + fotoUrl + '" class="ave-ref-thumb" alt="foto referencia">';
             } else {
-                html += '<div class="ave-ref-thumb ave-ref-thumb-empty"><i class="fas fa-image"></i></div>';
+                html += '<div class="ave-ref-thumb-empty"><i class="fas fa-image"></i></div>';
             }
-            html += '</div>';
-
-            // Info central
+            
             html += '<div class="ave-ref-card-info">';
             html += '<div class="ave-ref-card-title">';
-            html += self.escape(ref.tipoPropiedad || 'Sin tipo') + ' — ' + self.escape(ref.subtipoPropiedad || 'Sin subtipo');
-            html += ' ' + calcBadge;
+            html += self.escape(ref.tipoPropiedad || 'Sin tipo') + ' - ' + self.escape(ref.subtipoPropiedad || 'Sin subtipo');
+            html += '<span class="ave-ref-calc-badge ' + calcBadgeClass + '">' + calcBadgeText + '</span>';
             html += '</div>';
-
-            // Chips de área + valor m²
+            html += '<div class="ave-ref-card-subtitle">';
+            html += '<i class="fas fa-dollar-sign"></i> ' + labelValor + ': <strong>$ ' + valorReferencial.toLocaleString('es-VE') + '</strong>';
+            html += ' | <i class="fas fa-chart-line"></i> USD/m²: <strong>$ ' + parseFloat(valorM2).toFixed(2) + '</strong>';
+            html += '</div>';
             html += '<div class="ave-ref-areas-row">';
-            html += '<span class="ave-ref-area-chip"><i class="fas fa-ruler-combined"></i> Const. <strong>' + areaCon + '</strong></span>';
-            html += '<span class="ave-ref-area-chip"><i class="fas fa-expand-arrows-alt"></i> Terreno <strong>' + areaTer + '</strong></span>';
-            if (ref.valorReferencial) {
-                html += '<span class="ave-ref-area-chip ave-ref-area-chip--precio"><i class="fas fa-dollar-sign"></i> <strong>$ ' + parseFloat(ref.valorReferencial).toLocaleString('es-VE') + '</strong></span>';
+            html += '<span class="ave-ref-area-chip"><i class="fas fa-ruler-combined"></i> Const. <strong>' + (ref.areaConstruida ? parseFloat(ref.areaConstruida).toLocaleString('es-VE') + ' m²' : '-') + '</strong></span>';
+            if (mostrarAreaTerreno) {
+                html += '<span class="ave-ref-area-chip"><i class="fas fa-expand-arrows-alt"></i> Terreno <strong>' + (ref.areaTerreno ? parseFloat(ref.areaTerreno).toLocaleString('es-VE') + ' m²' : '-') + '</strong></span>';
             }
-            html += '<span class="ave-valorm2-display" style="margin-left:4px;">' + m2Display + '</span>';
             html += '</div>';
-            html += '</div>'; // /.ave-ref-card-info
-
+            html += '</div>';
+            html += '</div>';
+            
+            // Indicador de expandir
+            html += '<div class="ave-ref-expand-indicator">';
+            html += '<i class="fas fa-chevron-down"></i>';
+            html += '<span class="expand-text">Ver detalles</span>';
+            html += '</div>';
+            
             // Acciones
             html += '<div class="ave-ref-card-actions">';
-            html += '<button class="ave-btn ave-btn-secondary ave-btn-sm" data-action="editar-ref" data-tipo="' + tipo + '" data-idx="' + idx + '"><i class="fas fa-edit"></i> Editar</button>';
+            html += '<button class="ave-btn ave-btn-sm" data-action="editar-ref" data-tipo="' + tipo + '" data-idx="' + idx + '"><i class="fas fa-edit"></i> Editar</button>';
             html += '<button class="ave-btn ave-btn-danger ave-btn-sm" data-action="eliminar-ref" data-tipo="' + tipo + '" data-idx="' + idx + '"><i class="fas fa-trash"></i></button>';
             html += '</div>';
-
-            html += '</div>'; // /.ave-ref-card-header
-
-            // ── Body (resto de campos) ───────────────────────────────────
-            html += '<div class="ave-ref-card-body">';
-            html += '<div class="row">';
-
-            // Foto a tamaño completo en el body (si existe), más los demás campos
+            html += '</div>';
+            
+            // Body con foto a la izquierda y contenido a la derecha
+            html += '<div class="ave-ref-card-body" id="ref-body-' + idx + '" style="display:none;">';
+            html += '<div class="ave-ref-body-layout">';
+            
+            // Columna de la foto
+            html += '<div class="ave-ref-body-foto">';
             if (fotoUrl) {
-                html += '<div class="col-md-2">';
-                html += '<div class="ave-ref-field">';
-                html += '<div class="ave-ref-field-label">Foto</div>';
-                html += '<img src="' + fotoUrl + '" class="ave-ref-foto-full" alt="foto referencia">';
-                html += '</div></div>';
+                html += '<img src="' + fotoUrl + '" alt="foto referencia">';
+            } else {
+                html += '<div class="ave-ref-body-foto-empty"><i class="fas fa-image" style="font-size:32px; margin-bottom:8px; display:block;"></i>Sin foto</div>';
             }
-
-            var colClass = fotoUrl ? 'col-md-2' : 'col-md-3';
-
-            // Campos secundarios — excluimos área construida, terreno y valor (ya en header)
-            html += self.fieldHtml('Antigüedad',    ref.antiguedad    ? ref.antiguedad + ' años' : '-', colClass);
-            html += self.fieldHtml('Habitaciones',  ref.habitaciones  || '-', colClass);
-            html += self.fieldHtml('Baños',         ref.banos         || '-', colClass);
-            html += self.fieldHtml('Estacionam.',   ref.estacionamiento || '-', colClass);
-            html += self.fieldHtml('Piso',          ref.piso          || '-', colClass);
-            html += self.fieldHtml('Acabados',      ref.acabados      || '-', colClass);
-            html += self.fieldHtml('Seguridad',     ref.seguridad     || '-', colClass);
-            html += self.fieldHtml('Terraza',       ref.terraza       ? 'Sí' : 'No', colClass);
-            html += self.fieldHtml('Ascensores',    ref.ascensores    ? 'Sí' : 'No', colClass);
-
+            html += '</div>';
+            
+            // Columna del contenido
+            html += '<div class="ave-ref-body-content">';
+            html += '<div class="ave-ref-fields-grid">';
+            
+            // Campos en grid
+            html += self.fieldItem('Antigüedad', ref.antiguedad ? ref.antiguedad + ' años' : '-');
+            html += self.fieldItem('Habitaciones', ref.habitaciones || '-');
+            html += self.fieldItem('Baños', ref.banos || '-');
+            html += self.fieldItem('Estacionamiento', ref.estacionamiento || '-');
+            html += self.fieldItem('Piso', ref.piso || '-');
+            html += self.fieldItem('Acabados', ref.acabados || '-');
+            html += self.fieldItem('Seguridad', ref.seguridad || '-');
+            html += self.fieldItem('Terraza', ref.terraza ? 'Sí' : 'No');
+            html += self.fieldItem('Ascensores', ref.ascensores ? 'Sí' : 'No');
+            
+            html += '</div>';
+            
             if (ref.descripcion) {
-                html += '<div class="col-md-12"><div class="ave-ref-field"><div class="ave-ref-field-label">Descripción</div><div class="ave-ref-field-value">' + self.escape(ref.descripcion) + '</div></div></div>';
+                html += '<div style="margin-top:16px; padding-top:12px; border-top:1px solid var(--ave-border);">';
+                html += '<div class="ave-ref-field-label">Descripción</div>';
+                html += '<div class="ave-ref-field-value">' + self.escape(ref.descripcion) + '</div>';
+                html += '</div>';
             }
+            
             if (ref.enlace) {
-                html += '<div class="col-md-12"><div class="ave-ref-field"><div class="ave-ref-field-label">Enlace</div><div class="ave-ref-field-value"><a href="' + self.escape(ref.enlace) + '" target="_blank" rel="noopener">' + self.escape(ref.enlace) + '</a></div></div></div>';
+                html += '<div style="margin-top:12px;">';
+                html += '<div class="ave-ref-field-label">Enlace</div>';
+                html += '<div class="ave-ref-field-value"><a href="' + self.escape(ref.enlace) + '" target="_blank" rel="noopener">' + self.escape(ref.enlace) + '</a></div>';
+                html += '</div>';
             }
-
-            html += '</div></div>'; // /.row  /.ave-ref-card-body
-            html += '</div>';       // /.ave-ref-card
+            
+            html += '</div>'; // .ave-ref-body-content
+            html += '</div>'; // .ave-ref-body-layout
+            html += '</div>'; // .ave-ref-card-body
+            html += '</div>'; // .ave-ref-card
         });
 
         this.view.$el.find('#' + listId).html(html);
-    };
-
-    ReferenciasManager.prototype.fieldHtml = function (label, value, colClass) {
-        colClass = colClass || 'col-md-3';
-        return '<div class="' + colClass + '"><div class="ave-ref-field">' +
-            '<div class="ave-ref-field-label">' + label + '</div>' +
-            '<div class="ave-ref-field-value">' + this.escape(String(value)) + '</div>' +
-            '</div></div>';
+        
+        // Eventos para colapsar/expandir tarjetas con animación del ícono
+        this.view.$el.find('.ave-ref-card-header').off('click').on('click', function(e) {
+            // Evitar que el click en botones de editar/eliminar dispare el toggle
+            if ($(e.target).closest('.ave-ref-card-actions').length) return;
+            
+            var $card = $(this).closest('.ave-ref-card');
+            var $body = $card.find('.ave-ref-card-body');
+            var $indicator = $card.find('.ave-ref-expand-indicator i');
+            var $indicatorText = $card.find('.ave-ref-expand-indicator .expand-text');
+            
+            if ($body.is(':visible')) {
+                $body.slideUp(200);
+                $indicator.removeClass('fa-chevron-up').addClass('fa-chevron-down');
+                $indicatorText.text('Ver detalles');
+            } else {
+                $body.slideDown(200);
+                $indicator.removeClass('fa-chevron-down').addClass('fa-chevron-up');
+                $indicatorText.text('Ocultar detalles');
+            }
+        });
     };
 
     ReferenciasManager.prototype.getData = function () {

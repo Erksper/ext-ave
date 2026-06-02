@@ -67,11 +67,11 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         // Datos del asesor que creó el AVE
         var assignedUserName = ave.assignedUserName || 'Usuario';
         var assignedUserImageId = ave.assignedUserImageId || null;
-        var assignedUserPhone = ave.telefonoCliente || null;
         var teamName = ave.teamName || null;
         
-        // Logo del equipo
+        // Logo del equipo (oficina)
         var teamLogoUrl = view.teamLogoUrl || null;
+        console.log('teamLogoUrl en preview:', teamLogoUrl);
         
         var fechaActual = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
         var horaActual = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
@@ -100,7 +100,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
 
         var getImageUrl = function(imageId) {
             if (!imageId) return null;
-            return 'api/v1/Attachment/file/' + imageId;
+            return window.location.origin + '/api/v1/Attachment/file/' + imageId;
         };
 
         var escapeHtml = function(text) {
@@ -113,7 +113,8 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         // Helper para formato de tipo de propiedad
         var formatTipo = function(tipo) {
             var map = {
-                habitacional: 'Residencial',
+                departamento: 'Departamento',
+                casa: 'Casa',
                 comercial: 'Comercial',
                 industrial: 'Industrial',
                 vacacional: 'Vacacional',
@@ -125,55 +126,75 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         var formatSubtipo = function(subtipo) {
             if (!subtipo) return '-';
             var map = {
-                departamento: 'Apartamento',
+                apartamento: 'Apartamento',
+                casa: 'Casa',
                 'town-house': 'Town-House',
+                terreno: 'Terreno',
+                edificio: 'Edificio',
+                oficinas: 'Oficinas',
+                local: 'Local',
+                penthouse: 'Penthouse',
                 galpon: 'Galpón',
-                'casa-bote': 'Casa Bote',
-                'casa-duplex': 'Casa Duplex',
-                'fondo-de-comercio': 'Fondo de comercio',
+                quinta: 'Quinta',
+                hacienda: 'Hacienda',
+                deposito: 'Depósito',
                 'hotel-posada': 'Hotel/Posada',
+                'fondo-de-comercio': 'Fondo de comercio',
+                negocio: 'Negocio',
+                'casa-bote': 'Casa bote',
+                clinica: 'Clínica',
+                fabrica: 'Fábrica',
+                finca: 'Finca',
+                club: 'Club',
                 'tiempo-compartido': 'Tiempo compartido',
-                'inmueble-productivo': 'Inmueble productivo'
+                nave: 'Nave',
+                'casa-duplex': 'Casa dúplex',
+                bodega: 'Bodega',
+                'inmueble-productivo': 'Inmueble productivo',
+                rancho: 'Rancho',
+                fraccionamiento: 'Fraccionamiento'
             };
-            return map[subtipo] || subtipo.charAt(0).toUpperCase() + subtipo.slice(1).replace(/-/g, ' ');
+            return map[subtipo] || subtipo.replace(/-/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
         };
+
+        // Precio con ajuste por factores
+        var precioConFactores = precioOriginal * (1 + totalImpactoFactores / 100);
+        
+        // Rango de Precio Sugerido (calculado como porcentaje del precioOriginal)
+        var rangoMin = Math.round(precioOriginal * (1 - ajustePrecio / 100));
+        var rangoMax = Math.round(precioOriginal * (1 + ajustePrecio / 100));
 
         var html = '';
         html += '<div class="ave-preview-reporte" style="font-family: Arial, sans-serif; max-width: 1100px; margin: 0 auto;">';
 
         // ─────────────────────────────────────────────────────────────
-        // HEADER: Logo izquierda | Título centro | Foto asesor derecha
+        // HEADER: Logo izquierda | Título centro | Nombre cliente derecha
         // ─────────────────────────────────────────────────────────────
         html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #B8A279; padding-bottom: 15px;">';
         
-        // Logo izquierda
-        html += '<div style="width: 120px; text-align: left;">';
+        // Logo izquierda (oficina)
+        html += '<div style="width: 150px; text-align: left;">';
         if (teamLogoUrl) {
-            html += '<img src="' + escapeHtml(teamLogoUrl) + '" style="max-height: 60px; max-width: 120px; object-fit: contain;" onerror="this.style.display=\'none\'">';
+            html += '<img src="' + escapeHtml(teamLogoUrl) + '" style="max-height: 80px; max-width: 150px; object-fit: contain;" onerror="this.style.display=\'none\'">';
+        } else {
+            html += '<div style="width: 80px; height: 80px; background: #B8A279; border-radius: 12px; display: flex; align-items: center; justify-content: center;">';
+            html += '<i class="fas fa-building" style="color: white; font-size: 40px;"></i>';
+            html += '</div>';
         }
         html += '</div>';
         
         // Título centro
         html += '<div style="flex: 1; text-align: center;">';
-        html += '<h1 style="color: #B8A279; margin: 0; font-size: 20px;">ANÁLISIS PARA UNA VENTA EXITOSA</h1>';
-        html += '<h2 style="color: #666; margin: 5px 0 0; font-size: 16px;">' + escapeHtml(ave.nombreCliente || 'Cliente') + '</h2>';
+        html += '<h1 style="color: #B8A279; margin: 0; font-size: 22px;">ANÁLISIS PARA UNA VENTA EXITOSA</h1>';
+        html += '<p style="margin: 5px 0 0; font-size: 14px; color: #666;">Ref: ' + escapeHtml(ave.numeroAve || 'N/A') + '</p>';
         html += '</div>';
         
-        // Foto asesor derecha
-        html += '<div style="width: 120px; text-align: right;">';
-        if (assignedUserImageId) {
-            html += '<img src="' + escapeHtml(getImageUrl(assignedUserImageId)) + '" style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover; border: 2px solid #B8A279;" onerror="this.style.display=\'none\'">';
-        } else {
-            html += '<div style="width: 50px; height: 50px; border-radius: 50%; background: #B8A279; display: inline-flex; align-items: center; justify-content: center;">';
-            html += '<i class="fas fa-user" style="color: white; font-size: 24px;"></i>';
-            html += '</div>';
-        }
+        // Nombre del cliente derecha
+        html += '<div style="width: 150px; text-align: right;">';
+        html += '<div style="font-weight: 700; font-size: 14px; color: #B8A279;">Cliente:</div>';
+        html += '<div style="font-size: 13px;">' + escapeHtml(ave.nombreCliente || 'Cliente') + '</div>';
         html += '</div>';
-        html += '</div>';
-
-        // Referencia
-        html += '<div style="text-align: center; margin-bottom: 20px;">';
-        html += '<p><strong>Ref: ' + escapeHtml(ave.numeroAve || 'N/A') + '</strong></p>';
+        
         html += '</div>';
 
         // Texto de introducción
@@ -215,14 +236,14 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         html += '</td>';
         html += '</tr>';
         
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Propietario</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(inmueble.nombrePropietario || '-') + '</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>M² C / M² T</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.areaConstruida || '0') + ' / ' + (inmueble.areaTerreno || '0') + '</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Antigüedad (años)</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.antiguedad || '-') + '</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Habitaciones / Baños</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.numHabitaciones || '-') + ' / ' + (inmueble.numBanos || '-') + '</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Estacionamiento</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.puestoEstacionamiento || '-') + '</td></tr>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Propietario</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(inmueble.nombrePropietario || '-') + 'NonNull';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>M² C / M² T</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.areaConstruida || '0') + ' / ' + (inmueble.areaTerreno || '0') + 'NonNull';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Antigüedad (años)</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.antiguedad || '-') + 'NonNull';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Habitaciones / Baños</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.numHabitaciones || '-') + ' / ' + (inmueble.numBanos || '-') + 'NonNull';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Estacionamiento</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.puestoEstacionamiento || '-') + 'NonNull';
         
         if (inmueble.descripcion) {
-            html += '<tr><td style="padding: 8px;"><strong>Descripción</strong></td><td colspan="2">' + escapeHtml(inmueble.descripcion) + '</td></tr>';
+            html += '<tr><td style="padding: 8px;"><strong>Descripción</strong></td><td colspan="2">' + escapeHtml(inmueble.descripcion) + 'NonNull';
         }
         html += '</table>';
         html += '</div>';
@@ -300,7 +321,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             for (var i = 0; i < referenciasVendidos.length; i++) {
                 html += '<th style="padding: 8px; border: 1px solid #ddd;">REF ' + (i + 1) + '</th>';
             }
-            html += '</tr></thead><tbody>';
+            html += '</td></thead><tbody>';
 
             for (var r = 0; r < rows.length; r++) {
                 html += '<tr>';
@@ -419,10 +440,10 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         html += '<div style="margin-bottom: 20px;">';
         html += '<h3 style="color: #B8A279; font-size: 14px;">5. Situación Legal</h3>';
         html += '<table style="width: 100%; border-collapse: collapse; font-size: 12px;">';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee; width: 30%;"><strong>Cédula Catastral</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; width: 15%;">' + (legal.cedulaCatastral ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(legal.cedCatNota || '') + '</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Registro de Propiedad</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.registroPropiedad ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(legal.regProNota || '') + '</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Solvencia Municipal</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.solvenciaMunicipal ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(legal.solMunNota || '') + '</td></tr>';
-        html += '<tr><td style="padding: 8px;"><strong>Comentario Adicional</strong></td><td colspan="2">' + (legal.comentarioLegal ? escapeHtml(legal.comLegNota || '') : 'No hay comentarios') + '</td></tr>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee; width: 30%;"><strong>Cédula Catastral</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; width: 15%;">' + (legal.cedulaCatastral ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(legal.cedCatNota || '') + 'NonNull';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Registro de Propiedad</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.registroPropiedad ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(legal.regProNota || '') + 'NonNull';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Solvencia Municipal</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.solvenciaMunicipal ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(legal.solMunNota || '') + 'NonNull';
+        html += '<tr><td style="padding: 8px;"><strong>Comentario Adicional</strong></td><td colspan="2">' + (legal.comentarioLegal ? escapeHtml(legal.comLegNota || '') : 'No hay comentarios') + 'NonNull';
         html += '</table>';
         html += '</div>';
 
@@ -448,22 +469,25 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         html += '<td style="padding: 8px;"><strong>USD x m²</strong></td>';
         html += '<td style="padding: 8px;"><strong>Precio (USD)</strong></td>';
         html += '</tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Máximo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPriceDec(valorMax) + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPrice(precioMax) + '</td></tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Mínimo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPriceDec(valorMin) + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPrice(precioMin) + '</td></tr>';
-        html += '<tr><td style="padding: 8px;">Precio Promedio de salida al mercado</td><td style="padding: 8px;">$ ' + formatPriceDec(valorPromedio) + '</td><td style="padding: 8px;">$ ' + formatPrice(precioOriginal) + '</td></tr>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Máximo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPriceDec(valorMax) + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPrice(precioMax) + 'NonNull';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Mínimo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPriceDec(valorMin) + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPrice(precioMin) + 'NonNull';
+        html += '<tr><td style="padding: 8px;">Precio Promedio de salida al mercado</td><td style="padding: 8px;">$ ' + formatPriceDec(valorPromedio) + '</td><td style="padding: 8px;">$ ' + formatPrice(precioOriginal) + 'NonNull';
         html += '</table>';
 
-        // Precio ajustado por factores
-        var precioConAjuste = parseFloat(precioOriginal) * (1 + totalImpactoFactores / 100);
-        
+        // Rango de Precio Sugerido
         html += '<div style="background: #B8A279; color: white; padding: 15px; border-radius: 8px; text-align: center; margin-top: 15px;">';
-        html += '<strong>Rango de Precio para salir al mercado: entre $ ' + formatPrice(precioMin) + ' y $ ' + formatPrice(precioMax) + '</strong>';
-        html += '<br><span style="font-size: 12px;">Precio Sugerido: $ ' + formatPrice(precioOriginal) + ' (Ajuste: ' + ajustePrecio + '%)</span>';
-        html += '<br><span style="font-size: 11px;">Ponderación: ' + pesoOfertas + '% Ofertas / ' + pesoVentas + '% Ventas</span>';
+        html += '<div class="ave-precio-card-label" style="color: rgba(255,255,255,0.9); font-size: 12px; text-transform: uppercase;">RANGO DE PRECIO SUGERIDO</div>';
+        html += '<div style="font-size: 28px; font-weight: 700; margin: 5px 0;">';
+        html += '$ ' + formatPrice(rangoMin) + ' - $ ' + formatPrice(rangoMax);
+        html += '</div>';
+        html += '<div style="font-size: 12px; margin-top: 10px;">';
+        html += 'Precio Sugerido: $ ' + formatPrice(precioOriginal) + ' (Ajuste: ' + ajustePrecio + '%)<br>';
+        html += 'Ponderación: ' + pesoOfertas + '% Ofertas / ' + pesoVentas + '% Ventas';
         if (totalImpactoFactores !== 0) {
             var signoFactor = totalImpactoFactores >= 0 ? '+' : '';
-            html += '<br><span style="font-size: 11px;">Ajuste por factores: ' + signoFactor + totalImpactoFactores + '% → Precio con factores: $ ' + formatPrice(precioConAjuste) + '</span>';
+            html += '<br>Ajuste por factores: ' + signoFactor + totalImpactoFactores + '% → Precio con factores: $ ' + formatPrice(precioConFactores);
         }
+        html += '</div>';
         html += '</div>';
         html += '</div>';
 
@@ -523,9 +547,6 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         html += '<div style="text-align: left;">';
         html += '<p style="margin: 0; font-weight: bold; font-size: 15px;">' + escapeHtml(assignedUserName) + '</p>';
         html += '<p style="margin: 3px 0 0; font-size: 12px; color: #666;">Asesor Inmobiliario</p>';
-        if (assignedUserPhone) {
-            html += '<p style="margin: 3px 0 0; font-size: 12px; color: #666;">📞 ' + escapeHtml(assignedUserPhone) + '</p>';
-        }
         if (teamName) {
             html += '<p style="margin: 3px 0 0; font-size: 12px; color: #666;">🏢 ' + escapeHtml(teamName) + '</p>';
         }

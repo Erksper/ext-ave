@@ -1,13 +1,18 @@
 define('ave:views/ave-principal/modules/precio', [], function () {
 
     var PrecioManager = function (view) {
-        this.view    = view;
+        this.view = view;
         this.timeout = null;
+        this.referenciasPromocion = [];
+        this.referenciasVendidos = [];
+        this.areaInmueble = 0;
     };
 
     PrecioManager.prototype.poblar = function (ave) {
         console.log('=== PRECIO MANAGER: poblar ===');
         console.log('Datos recibidos del AVE:', ave);
+        
+        this.actualizarDatosBase();
         
         this.view.$el.find('#valorMax').val(ave.valorMax || '');
         this.view.$el.find('#precioMax').val(ave.precioMax || '');
@@ -19,20 +24,117 @@ define('ave:views/ave-principal/modules/precio', [], function () {
         var pesoOfertas = (ave.pesoOfertas !== undefined && ave.pesoOfertas !== null && ave.pesoOfertas !== '')
             ? parseFloat(ave.pesoOfertas) : 50;
 
-        console.log('Peso Ofertas:', pesoOfertas);
-        console.log('Ajuste Precio:', ave.ajustePrecio || 0);
-        console.log('Precio Original (base):', ave.precioOriginal || 0);
-
         this.view.$el.find('#pesoOfertas').val(pesoOfertas);
         this.view.$el.find('#pesoVentas').val(100 - pesoOfertas);
         this.view.$el.find('#ajustePrecio').val(ave.ajustePrecio || 0);
 
         this.initEventos();
         
-        // Pasar el precioOriginal como base para el rango
-        var precioBase = ave.precioOriginal || 0;
-        var ajuste = ave.ajustePrecio || 0;
-        this.actualizarRango(ajuste, precioBase);
+        // Calcular precios inmediatamente
+        this.calcularPrecios();
+    };
+
+    PrecioManager.prototype.actualizarDatosBase = function () {
+        if (this.view.referenciasManager) {
+            this.referenciasPromocion = this.view.referenciasManager.items.promocion || [];
+            this.referenciasVendidos = this.view.referenciasManager.items.vendido || [];
+        }
+        
+        if (this.view.inmuebleManager && this.view.inmuebleManager.inmuebleActual) {
+            this.areaInmueble = parseFloat(this.view.inmuebleManager.inmuebleActual.areaConstruida) || 0;
+        }
+        
+        console.log('Datos base actualizados - Área:', this.areaInmueble);
+        console.log('Referencias Promoción:', this.referenciasPromocion.length);
+        console.log('Referencias Vendidos:', this.referenciasVendidos.length);
+    };
+
+    PrecioManager.prototype.calcularPrecios = function () {
+        // Calcular precios M2 de referencias en promoción
+        var sumaPreciosProm = 0;
+        var sumaAreasProm = 0;
+        var preciosM2Prom = [];
+        
+        this.referenciasPromocion.forEach(function(ref) {
+            if (ref.usarCalculo !== false) {
+                var precio = parseFloat(ref.valorReferencial) || 0;
+                var area = parseFloat(ref.areaConstruida) || 0;
+                if (precio > 0 && area > 0) {
+                    var precioM2 = precio / area;
+                    sumaPreciosProm += precio;
+                    sumaAreasProm += area;
+                    preciosM2Prom.push(precioM2);
+                }
+            }
+        });
+        
+        // Calcular precios M2 de referencias vendidas
+        var sumaPreciosVen = 0;
+        var sumaAreasVen = 0;
+        var preciosM2Ven = [];
+        
+        this.referenciasVendidos.forEach(function(ref) {
+            if (ref.usarCalculo !== false) {
+                var precio = parseFloat(ref.valorReferencial) || 0;
+                var area = parseFloat(ref.areaConstruida) || 0;
+                if (precio > 0 && area > 0) {
+                    var precioM2 = precio / area;
+                    sumaPreciosVen += precio;
+                    sumaAreasVen += area;
+                    preciosM2Ven.push(precioM2);
+                }
+            }
+        });
+        
+        // Calcular promedios
+        var precioM2Ofertas = sumaAreasProm > 0 ? sumaPreciosProm / sumaAreasProm : 0;
+        var precioM2Ventas = sumaAreasVen > 0 ? sumaPreciosVen / sumaAreasVen : 0;
+        
+        // Obtener todos los precios M2 para min/max
+        var todosLosPreciosM2 = [...preciosM2Prom, ...preciosM2Ven];
+        var valorMaxM2 = todosLosPreciosM2.length > 0 ? Math.max(...todosLosPreciosM2) : 0;
+        var valorMinM2 = todosLosPreciosM2.length > 0 ? Math.min(...todosLosPreciosM2) : 0;
+        
+        // Obtener pesos
+        var pesoOfertas = parseFloat(this.view.$el.find('#pesoOfertas').val()) || 50;
+        var pesoVentas = 100 - pesoOfertas;
+        
+        // Calcular precio M2 ponderado
+        var precioM2Ponderado = (precioM2Ofertas * pesoOfertas / 100) + (precioM2Ventas * pesoVentas / 100);
+        
+        // Calcular precios en USD
+        var precioMaximo = valorMaxM2 * this.areaInmueble;
+        var precioMinimo = valorMinM2 * this.areaInmueble;
+        var precioVentaBase = precioM2Ponderado * this.areaInmueble;
+        
+        // Aplicar ajuste para el precio sugerido
+        var ajuste = parseFloat(this.view.$el.find('#ajustePrecio').val()) || 0;
+        
+        console.log('Cálculo realizado:');
+        console.log('  precioM2Ofertas:', precioM2Ofertas);
+        console.log('  precioM2Ventas:', precioM2Ventas);
+        console.log('  pesoOfertas:', pesoOfertas);
+        console.log('  valorMaxM2:', valorMaxM2);
+        console.log('  valorMinM2:', valorMinM2);
+        console.log('  precioM2Ponderado:', precioM2Ponderado);
+        console.log('  área inmueble:', this.areaInmueble);
+        console.log('  precioMaximo:', precioMaximo);
+        console.log('  precioMinimo:', precioMinimo);
+        console.log('  precioVentaBase:', precioVentaBase);
+        
+        // Actualizar inputs
+        this.view.$el.find('#valorMax').val(valorMaxM2.toFixed(2));
+        this.view.$el.find('#precioMax').val(Math.round(precioMaximo));
+        this.view.$el.find('#valorPromedio').val(precioM2Ponderado.toFixed(2));
+        this.view.$el.find('#valorMin').val(valorMinM2.toFixed(2));
+        this.view.$el.find('#precioMin').val(Math.round(precioMinimo));
+        this.view.$el.find('#precioOriginal').val(Math.round(precioVentaBase));
+        
+        // Actualizar rango (usando el ajuste sobre el precio base)
+        this.actualizarRango(ajuste, precioVentaBase);
+        
+        // Actualizar peso ventas
+        this.view.$el.find('#pesoVentas').val(pesoVentas);
     };
 
     PrecioManager.prototype.initEventos = function () {
@@ -42,9 +144,8 @@ define('ave:views/ave-principal/modules/precio', [], function () {
             var val = parseInt($(this).val()) || 0;
             val = Math.min(100, Math.max(0, val));
             $(this).val(val);
-            self.view.$el.find('#pesoVentas').val(100 - val);
             console.log('Peso Ofertas cambiado a:', val);
-            self.calcular();
+            self.calcularPrecios();
         });
 
         this.view.$el.find('#ajustePrecio').off('input.precio').on('input.precio', function () {
@@ -52,59 +153,10 @@ define('ave:views/ave-principal/modules/precio', [], function () {
             val = Math.min(100, Math.max(-100, val));
             $(this).val(val);
             console.log('Ajuste Precio cambiado a:', val);
-            self.calcular();
+            
+            var precioBase = parseFloat(self.view.$el.find('#precioOriginal').val()) || 0;
+            self.actualizarRango(val, precioBase);
         });
-    };
-
-    PrecioManager.prototype.calcular = function () {
-        var self = this;
-
-        if (this.timeout) clearTimeout(this.timeout);
-
-        this.timeout = setTimeout(function () {
-            var aveId       = self.view.aveId;
-            var pesoOfertas = parseFloat(self.view.$el.find('#pesoOfertas').val()) || 50;
-            var ajuste      = parseFloat(self.view.$el.find('#ajustePrecio').val()) || 0;
-
-            console.log('=== PRECIO MANAGER: calcular ===');
-            console.log('aveId:', aveId);
-            console.log('pesoOfertas enviado:', pesoOfertas);
-            console.log('ajuste enviado:', ajuste);
-
-            Espo.Ajax.postRequest('AvePrincipal/action/recalcularPrecios', {
-                aveId:       aveId,
-                pesoOfertas: pesoOfertas,
-                ajustePrecio: ajuste
-            })
-            .then(function (response) {
-                console.log('Respuesta del servidor (recalcularPrecios):', response);
-                if (response.success) {
-                    var d = response.data;
-                    console.log('Datos recibidos del servidor:', d);
-                    
-                    self.view.$el.find('#valorMax').val(d.valorMax);
-                    self.view.$el.find('#precioMax').val(d.precioMax);
-                    self.view.$el.find('#valorPromedio').val(d.valorPromedio);
-                    self.view.$el.find('#valorMin').val(d.valorMin);
-                    self.view.$el.find('#precioMin').val(d.precioMin);
-                    self.view.$el.find('#precioOriginal').val(d.precioOriginal);
-                    
-                    self.view.$el.find('#pesoVentas').val(100 - (d.pesoOfertas || pesoOfertas));
-                    
-                    // Usar precioOriginal como base para el rango
-                    var precioBase = d.precioOriginal || 0;
-                    var nuevoAjuste = d.ajustePrecio || ajuste;
-                    self.actualizarRango(nuevoAjuste, precioBase);
-                } else {
-                    console.error('Error en recalcularPrecios:', response.error);
-                    Espo.Ui.error(response.error || 'Error al recalcular precios');
-                }
-            })
-            .catch(function (error) {
-                console.error('Error en petición recalcularPrecios:', error);
-                Espo.Ui.error('Error al conectar con el servidor');
-            });
-        }, 400);
     };
 
     PrecioManager.prototype.actualizarRango = function (ajuste, precioBase) {
@@ -113,21 +165,17 @@ define('ave:views/ave-principal/modules/precio', [], function () {
 
         console.log('actualizarRango - ajuste:', ajuste, 'precioBase:', precioBase);
 
+        var fmt = function (n) {
+            return n.toLocaleString('es-VE', {
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0
+            });
+        };
+
         if (precioBase > 0) {
-            // El rango se calcula aplicando el ajuste ALREDEDOR del precio base
-            // Ejemplo: precioBase = 90678, ajuste = 10%
-            // Mínimo = precioBase * (1 - ajuste/100) = 90678 * 0.9 = 81610
-            // Máximo = precioBase * (1 + ajuste/100) = 90678 * 1.1 = 99746
             var min = Math.round(precioBase * (1 - ajuste / 100));
             var max = Math.round(precioBase * (1 + ajuste / 100));
-
-            var fmt = function (n) {
-                return n.toLocaleString('es-VE', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0
-                });
-            };
-
+            
             console.log('Rango calculado - min:', min, 'max:', max);
             this.view.$el.find('#rangoPrecioMinDisplay').text('$ ' + fmt(min));
             this.view.$el.find('#rangoPrecioMaxDisplay').text('$ ' + fmt(max));
@@ -136,6 +184,11 @@ define('ave:views/ave-principal/modules/precio', [], function () {
             this.view.$el.find('#rangoPrecioMinDisplay').text('$ 0');
             this.view.$el.find('#rangoPrecioMaxDisplay').text('$ 0');
         }
+    };
+    
+    PrecioManager.prototype.recargar = function () {
+        this.actualizarDatosBase();
+        this.calcularPrecios();
     };
 
     return PrecioManager;
