@@ -18,6 +18,7 @@ define('ave:views/ave-principal/detail', [
         aveData: null,
         inmuebleData: null,
         teamId: null,
+        baseUrl: null,
 
         // Eventos
         events: {
@@ -148,7 +149,6 @@ define('ave:views/ave-principal/detail', [
             console.log('Peso Ventas:', this.$el.find('#pesoVentas').val());
             console.log('Ajuste:', this.$el.find('#ajustePrecio').val());
             
-            // También mostrar datos calculados
             var self = this;
             Espo.Ajax.postRequest('AvePrincipal/action/recalcularPrecios', {
                 aveId: this.aveId,
@@ -178,6 +178,10 @@ define('ave:views/ave-principal/detail', [
         setup: function () {
             Dep.prototype.setup.call(this);
             console.log('detail.setup()');
+            
+            // Obtener la URL base correcta
+            this.baseUrl = window.location.origin + window.location.pathname.replace(/\/client\/.*$/, '');
+            console.log('Base URL:', this.baseUrl);
             
             this.aveId = this.model.id;
             if (!this.aveId) {
@@ -219,37 +223,81 @@ define('ave:views/ave-principal/detail', [
             });
             
             this.precioManager = new PrecioManager(this);
-            this.previewManager = new PreviewManager(this);
+            this.previewManager = new PreviewManager(this, this.baseUrl);
         },
 
-        cargarLogoEquipo: function (teamId) {
+        cargarLogoOficina: function () {
             var self = this;
-            if (!teamId) return;
+            var assignedUserId = this.aveData ? this.aveData.assignedUserId : null;
             
-            // Buscar un usuario con imagen "por la casa" o la primera imagen disponible
-            Espo.Ajax.getRequest('Team/' + teamId + '/users', {
-                select: 'id,name,cImagenId',
-                maxSize: 50
-            }).then(function (response) {
-                var users = response.list || [];
-                // Buscar usuario que contenga "por la casa" en el nombre
-                var casaUser = users.find(function (u) {
-                    return u.name && u.name.toLowerCase().includes('por la casa');
-                });
-                if (casaUser && casaUser.cImagenId) {
-                    self.teamLogoUrl = window.location.origin + '/api/v1/Attachment/file/' + casaUser.cImagenId;
-                } else {
-                    // Buscar cualquier usuario con imagen
-                    var anyUserWithImage = users.find(function (u) { return u.cImagenId; });
-                    if (anyUserWithImage && anyUserWithImage.cImagenId) {
-                        self.teamLogoUrl = window.location.origin + '/api/v1/Attachment/file/' + anyUserWithImage.cImagenId;
+            if (!assignedUserId) {
+                console.log('No hay assignedUserId, logo no se cargará');
+                return;
+            }
+            
+            console.log('Buscando usuario asignado:', assignedUserId);
+            
+            // Obtener el usuario asignado
+            Espo.Ajax.getRequest('User/' + assignedUserId, {
+                select: 'id,name,cImagenId,teamsIds'
+            }).then(function (userData) {
+                console.log('Usuario asignado:', userData);
+                
+                // Obtener los teams del usuario
+                var teamIds = userData.teamsIds || [];
+                console.log('Teams del usuario:', teamIds);
+                
+                // Buscar un team que NO sea CLA (es la oficina)
+                var oficinaId = null;
+                for (var i = 0; i < teamIds.length; i++) {
+                    if (teamIds[i].indexOf('CLA') !== 0) {
+                        oficinaId = teamIds[i];
+                        break;
                     }
                 }
-                if (self.isRendered() && self.previewManager) {
+                
+                if (oficinaId) {
+                    console.log('Oficina encontrada:', oficinaId);
+                    
+                    // Buscar el usuario con userName = oficinaId
+                    Espo.Ajax.getRequest('User', {
+                        where: [{
+                            type: 'equals',
+                            attribute: 'userName',
+                            value: oficinaId
+                        }],
+                        maxSize: 1,
+                        select: 'id,name,cImagenId,userName'
+                    }).then(function (response) {
+                        var users = response.list || [];
+                        if (users.length > 0 && users[0].cImagenId) {
+                            self.teamLogoUrl = 'api/v1/Attachment/file/' + users[0].cImagenId;
+                            console.log('Logo encontrado:', self.teamLogoUrl);
+                        } else {
+                            console.log('No se encontró logo para la oficina:', oficinaId);
+                            self.teamLogoUrl = null;
+                        }
+                        
+                        if (self.previewManager) {
+                            self.previewManager.generar();
+                        }
+                    }).catch(function (error) {
+                        console.error('Error al buscar logo de oficina:', error);
+                        if (self.previewManager) {
+                            self.previewManager.generar();
+                        }
+                    });
+                } else {
+                    console.log('No se encontró oficina para el usuario');
+                    if (self.previewManager) {
+                        self.previewManager.generar();
+                    }
+                }
+            }).catch(function (error) {
+                console.error('Error al obtener usuario asignado:', error);
+                if (self.previewManager) {
                     self.previewManager.generar();
                 }
-            }).catch(function () {
-                // No se pudo cargar el logo
             });
         },
 
@@ -257,7 +305,6 @@ define('ave:views/ave-principal/detail', [
             Dep.prototype.afterRender.call(this);
             this.cargarDatos();
             
-            // Exponer el manager en la consola para debugging
             var self = this;
             window.aveDebug = {
                 getPrecios: function() {
@@ -271,7 +318,6 @@ define('ave:views/ave-principal/detail', [
                     console.log('Peso Ventas:', self.$el.find('#pesoVentas').val());
                     console.log('Ajuste:', self.$el.find('#ajustePrecio').val());
                     
-                    // Calcular manualmente los precios M2 de referencias
                     var refsPromocion = self.referenciasManager?.items?.promocion || [];
                     var refsVendidos = self.referenciasManager?.items?.vendido || [];
                     
@@ -339,40 +385,33 @@ define('ave:views/ave-principal/detail', [
                     if (self.precioManager) {
                         self.precioManager.recargar();
                     }
-                }
-            };
-
-            window.aveDebugActualizarPreview = function() {
-                if (self.previewManager) {
-                    self.previewManager.generar();
+                },
+                actualizarPreview: function() {
+                    if (self.previewManager) {
+                        self.previewManager.generar();
+                    }
                 }
             };
             console.log('✅ Debug disponible: escribe aveDebug.getPrecios() en la consola');
             
-            // Interceptar cambios del inmueble para recargar factores y precios
-            var self = this;
+            // Interceptar cambios del inmueble
             var originalMostrarInmueble = this.inmuebleManager.mostrarInmueble;
             this.inmuebleManager.mostrarInmueble = function(data) {
                 originalMostrarInmueble.call(self.inmuebleManager, data);
-                // Recargar factores después de mostrar el inmueble
                 if (self.factoresManager) {
                     self.factoresManager.recargarPorInmueble();
                 }
-                // Recargar precios después de mostrar el inmueble
                 if (self.precioManager) {
                     self.precioManager.recargar();
                 }
             };
             
-            // También cuando se limpia la selección
             var originalLimpiarSeleccion = this.inmuebleManager.limpiarSeleccion;
             this.inmuebleManager.limpiarSeleccion = function() {
                 originalLimpiarSeleccion.call(self.inmuebleManager);
-                // Limpiar factores también
                 if (self.factoresManager) {
                     self.factoresManager.recargarPorInmueble();
                 }
-                // Recargar precios
                 if (self.precioManager) {
                     self.precioManager.recargar();
                 }
@@ -401,10 +440,10 @@ define('ave:views/ave-principal/detail', [
                     var numero = self.aveData.numeroAve || 'Sin número asignado';
                     self.$el.find('#ave-subtitle').text(numero);
                     
-                    // PRIMERO: Poblar el formulario (esto carga los items existentes)
+                    // PRIMERO: Poblar el formulario
                     self.poblarFormulario(response.data);
                     
-                    // SEGUNDO: Cargar catálogos después de tener los datos
+                    // SEGUNDO: Cargar catálogos
                     self.factoresManager.cargarCatalogo(self.teamId);
                     self.fodaManager.cargarCatalogo(self.teamId);
                     self.decisionesManager.cargarCatalogo(self.teamId);
@@ -436,7 +475,6 @@ define('ave:views/ave-principal/detail', [
             this.inmuebleManager.inicializarBuscador();
             if (data.inmueble) {
                 this.inmuebleManager.mostrarInmueble(data.inmueble);
-                // Recargar factores cuando se carga un inmueble
                 if (this.factoresManager) {
                     this.factoresManager.recargarPorInmueble();
                 }
@@ -460,16 +498,16 @@ define('ave:views/ave-principal/detail', [
             
             // Pestaña 8 — Precios
             this.precioManager.poblar(ave);
-            if (ave.teamId) {
-                this.cargarLogoOficina(ave.teamId);  // Cambiar de cargarLogoEquipo a cargarLogoOficina
-            }
             
-            // Recargar precios después de cargar referencias e inmueble
+            // Cargar logo de oficina
+            this.cargarLogoOficina();
+            
+            // Recargar precios
             if (this.precioManager) {
                 this.precioManager.recargar();
             }
             
-            // Guardar datos del asesor para la vista previa
+            // Guardar datos del asesor
             this.assignedUserName = ave.assignedUserName;
             this.assignedUserImageId = ave.assignedUserImageId;
             this.teamName = ave.teamName;
@@ -510,9 +548,6 @@ define('ave:views/ave-principal/detail', [
             }
         },
 
-        // ─────────────────────────────────────────────────────────────
-        // Toggle panel
-        // ─────────────────────────────────────────────────────────────
         togglePanel: function (e) {
             var $header = $(e.currentTarget);
             var $body = $header.closest('.ave-panel').find('.ave-panel-body');
@@ -529,9 +564,6 @@ define('ave:views/ave-principal/detail', [
             }
         },
 
-        // ─────────────────────────────────────────────────────────────
-        // Validar email
-        // ─────────────────────────────────────────────────────────────
         validarEmail: function () {
             var email = this.$el.find('#correoCliente').val().trim();
             var $help = this.$el.find('#emailHelp');
@@ -545,62 +577,9 @@ define('ave:views/ave-principal/detail', [
             }
         },
 
-        actualizarPreview: function () {
-            if (this.previewManager && this.tabsManager && this.tabsManager.getTabActual() === 'tab-12') {
-                this.previewManager.generar();
-            }
-        },
-
-        cargarLogoOficina: function (teamId) {
-            var self = this;
-            if (!teamId) {
-                console.log('No hay teamId, logo no se cargará');
-                return;
-            }
-            
-            console.log('Buscando logo para equipo:', teamId);
-            
-            // Buscar el usuario cuyo nombre de usuario es igual al teamId
-            Espo.Ajax.getRequest('User', {
-                where: [{
-                    type: 'equals',
-                    attribute: 'userName',
-                    value: teamId
-                }],
-                maxSize: 1,
-                select: 'id,name,cImagenId,userName'
-            }).then(function (response) {
-                var users = response.list || [];
-                console.log('Usuarios encontrados con userName=' + teamId + ':', users);
-                
-                if (users.length > 0 && users[0].cImagenId) {
-                    self.teamLogoUrl = window.location.origin + '/api/v1/Attachment/file/' + users[0].cImagenId;
-                    console.log('Logo encontrado:', self.teamLogoUrl);
-                } else {
-                    console.log('No se encontró logo para el equipo:', teamId);
-                    self.teamLogoUrl = null;
-                }
-                
-                // Actualizar vista previa si está visible
-                if (self.previewManager) {
-                    self.previewManager.generar();
-                }
-            }).catch(function (error) {
-                console.error('Error al buscar logo:', error);
-                self.teamLogoUrl = null;
-                if (self.previewManager) {
-                    self.previewManager.generar();
-                }
-            });
-        },
-
-        // ─────────────────────────────────────────────────────────────
-        // Guardar
-        // ─────────────────────────────────────────────────────────────
         guardar: function () {
             var self = this;
 
-            // Validar nombre
             var nombreCliente = this.$el.find('#nombreCliente').val().trim();
             if (!nombreCliente) {
                 Espo.Ui.warning('El nombre del cliente es requerido');
@@ -609,7 +588,6 @@ define('ave:views/ave-principal/detail', [
                 return;
             }
 
-            // Validar correo si está presente
             var email = this.$el.find('#correoCliente').val().trim();
             if (email && !this.validarEmail()) {
                 Espo.Ui.warning('Ingrese un correo electrónico válido');
@@ -663,7 +641,6 @@ define('ave:views/ave-principal/detail', [
             };
 
             console.log('Payload a enviar:', payload);
-            console.log('Precio payload:', payload.precio);
 
             Espo.Ajax.postRequest('AvePrincipal/action/guardar', payload)
                 .then(function (response) {
@@ -683,9 +660,6 @@ define('ave:views/ave-principal/detail', [
                 });
         },
 
-        // ─────────────────────────────────────────────────────────────
-        // Helper escape
-        // ─────────────────────────────────────────────────────────────
         escape: function (text) {
             if (!text) return '';
             return String(text).replace(/[&<>"']/g, function (m) {

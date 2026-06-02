@@ -21,17 +21,20 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         }.bind(this), 300);
     };
 
+    PreviewManager.prototype.getImageUrl = function(imageId) {
+        if (!imageId) return null;
+        return 'api/v1/Attachment/file/' + imageId;
+    };
+
     PreviewManager.prototype.generarHTML = function () {
         var view = this.view;
         var ave = view.aveData || {};
         var inmueble = view.inmuebleData || {};
 
-        // Obtener datos de las diferentes secciones
         var referencias = view.referenciasManager ? view.referenciasManager.getData() : [];
         var referenciasPromocion = referencias.filter(function(r) { return r.tipo === 'promocion'; });
         var referenciasVendidos = referencias.filter(function(r) { return r.tipo === 'vendido'; });
         
-        // FODA
         var analisisData = { fortaleza: [], debilidad: [] };
         if (view.fodaManager) {
             analisisData = {
@@ -42,7 +45,6 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         var fortalezas = analisisData.fortaleza;
         var debilidades = analisisData.debilidad;
         
-        // Factores aplicados
         var factoresAplicados = view.factoresManager ? view.factoresManager.getData() : [];
         var totalImpactoFactores = 0;
         factoresAplicados.forEach(function(f) {
@@ -53,7 +55,6 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         var canales = view.canalesManager ? view.canalesManager.getData() : [];
         var planes = view.planesManager ? view.planesManager.getData() : [];
 
-        // Datos de precio
         var valorMax = parseFloat(view.$el.find('#valorMax').val()) || 0;
         var precioMax = parseFloat(view.$el.find('#precioMax').val()) || 0;
         var valorMin = parseFloat(view.$el.find('#valorMin').val()) || 0;
@@ -64,19 +65,16 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         var pesoOfertas = parseFloat(view.$el.find('#pesoOfertas').val()) || 50;
         var pesoVentas = 100 - pesoOfertas;
 
-        // Datos del asesor que creó el AVE
         var assignedUserName = ave.assignedUserName || 'Usuario';
         var assignedUserImageId = ave.assignedUserImageId || null;
         var teamName = ave.teamName || null;
-        
-        // Logo del equipo (oficina)
         var teamLogoUrl = view.teamLogoUrl || null;
+        
         console.log('teamLogoUrl en preview:', teamLogoUrl);
         
         var fechaActual = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
         var horaActual = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
-        // Datos legales
         var legal = {
             cedulaCatastral: view.$el.find('#chk-cedulaCatastral').is(':checked'),
             cedCatNota: view.$el.find('#cedCatNota').val(),
@@ -98,11 +96,6 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             return parseFloat(n).toFixed(2).toLocaleString('es-VE');
         };
 
-        var getImageUrl = function(imageId) {
-            if (!imageId) return null;
-            return window.location.origin + '/api/v1/Attachment/file/' + imageId;
-        };
-
         var escapeHtml = function(text) {
             if (!text) return '';
             return String(text).replace(/[&<>"']/g, function(m) {
@@ -110,7 +103,6 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             });
         };
 
-        // Helper para formato de tipo de propiedad
         var formatTipo = function(tipo) {
             var map = {
                 departamento: 'Departamento',
@@ -135,47 +127,24 @@ define('ave:views/ave-principal/modules/preview', [], function () {
                 local: 'Local',
                 penthouse: 'Penthouse',
                 galpon: 'Galpón',
-                quinta: 'Quinta',
-                hacienda: 'Hacienda',
-                deposito: 'Depósito',
-                'hotel-posada': 'Hotel/Posada',
-                'fondo-de-comercio': 'Fondo de comercio',
-                negocio: 'Negocio',
-                'casa-bote': 'Casa bote',
-                clinica: 'Clínica',
-                fabrica: 'Fábrica',
-                finca: 'Finca',
-                club: 'Club',
-                'tiempo-compartido': 'Tiempo compartido',
-                nave: 'Nave',
-                'casa-duplex': 'Casa dúplex',
-                bodega: 'Bodega',
-                'inmueble-productivo': 'Inmueble productivo',
-                rancho: 'Rancho',
-                fraccionamiento: 'Fraccionamiento'
+                quinta: 'Quinta'
             };
             return map[subtipo] || subtipo.replace(/-/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
         };
 
-        // Precio con ajuste por factores
         var precioConFactores = precioOriginal * (1 + totalImpactoFactores / 100);
-        
-        // Rango de Precio Sugerido (calculado como porcentaje del precioOriginal)
         var rangoMin = Math.round(precioOriginal * (1 - ajustePrecio / 100));
         var rangoMax = Math.round(precioOriginal * (1 + ajustePrecio / 100));
 
         var html = '';
         html += '<div class="ave-preview-reporte" style="font-family: Arial, sans-serif; max-width: 1100px; margin: 0 auto;">';
 
-        // ─────────────────────────────────────────────────────────────
-        // HEADER: Logo izquierda | Título centro | Nombre cliente derecha
-        // ─────────────────────────────────────────────────────────────
+        // HEADER
         html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #B8A279; padding-bottom: 15px;">';
         
-        // Logo izquierda (oficina)
         html += '<div style="width: 150px; text-align: left;">';
         if (teamLogoUrl) {
-            html += '<img src="' + escapeHtml(teamLogoUrl) + '" style="max-height: 80px; max-width: 150px; object-fit: contain;" onerror="this.style.display=\'none\'">';
+            html += '<img src="' + teamLogoUrl + '" style="max-height: 80px; max-width: 150px; object-fit: contain;" onerror="this.style.display=\'none\'">';
         } else {
             html += '<div style="width: 80px; height: 80px; background: #B8A279; border-radius: 12px; display: flex; align-items: center; justify-content: center;">';
             html += '<i class="fas fa-building" style="color: white; font-size: 40px;"></i>';
@@ -183,28 +152,23 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         }
         html += '</div>';
         
-        // Título centro
         html += '<div style="flex: 1; text-align: center;">';
         html += '<h1 style="color: #B8A279; margin: 0; font-size: 22px;">ANÁLISIS PARA UNA VENTA EXITOSA</h1>';
         html += '<p style="margin: 5px 0 0; font-size: 14px; color: #666;">Ref: ' + escapeHtml(ave.numeroAve || 'N/A') + '</p>';
         html += '</div>';
         
-        // Nombre del cliente derecha
         html += '<div style="width: 150px; text-align: right;">';
         html += '<div style="font-weight: 700; font-size: 14px; color: #B8A279;">Cliente:</div>';
         html += '<div style="font-size: 13px;">' + escapeHtml(ave.nombreCliente || 'Cliente') + '</div>';
         html += '</div>';
-        
         html += '</div>';
 
-        // Texto de introducción
+        // Introducción
         html += '<div style="margin-bottom: 25px; text-align: justify; line-height: 1.6; background: #f8f9fa; padding: 15px; border-radius: 8px;">';
         html += '<p style="margin: 0;">Estimado(a) ' + escapeHtml(ave.nombreCliente || 'Cliente') + ', Reciba de todo el equipo que labora en nuestras oficinas un cordial saludo de respeto hacia usted por brindarnos su confianza. Le presentamos el siguiente Análisis de Venta Exitoso correspondiente a su propiedad; con el propósito de mostrarle referencias actuales del mercado inmobiliario que le ayuden a tomar la mejor decisión sobre el valor promocional de su inmueble y realizar un excelente negocio inmobiliario.</p>';
         html += '</div>';
 
-        // ─────────────────────────────────────────────────────────────
-        // UBICACIÓN
-        // ─────────────────────────────────────────────────────────────
+        // Ubicación
         var ubicacion = [
             inmueble.urbanizacion,
             inmueble.avenidaCalle,
@@ -217,9 +181,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         html += '<p><strong>' + escapeHtml(ubicacion || 'No especificada') + '</strong></p>';
         html += '</div>';
 
-        // ─────────────────────────────────────────────────────────────
-        // FICHA DEL INMUEBLE CON FOTO
-        // ─────────────────────────────────────────────────────────────
+        // Ficha del Inmueble
         html += '<div style="background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; margin-bottom: 20px;">';
         html += '<h3 style="color: #B8A279; margin-top: 0; font-size: 14px;"><i class="fas fa-building"></i> Ficha del Inmueble</h3>';
         
@@ -229,28 +191,26 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         html += '<td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(formatTipo(inmueble.tipoPropiedad)) + ' - ' + escapeHtml(formatSubtipo(inmueble.subtipoPropiedad)) + '</td>';
         html += '<td rowspan="6" style="width: 150px; text-align: center; vertical-align: middle;">';
         if (inmueble.fotoId) {
-            html += '<img src="api/v1/Attachment/file/' + escapeHtml(inmueble.fotoId) + '" style="max-width: 130px; max-height: 130px; border-radius: 8px; border: 1px solid #ddd;" onerror="this.style.display=\'none\'">';
+            html += '<img src="' + this.getImageUrl(inmueble.fotoId) + '" style="max-width: 130px; max-height: 130px; border-radius: 8px; border: 1px solid #ddd;" onerror="this.style.display=\'none\'">';
         } else {
             html += '<div style="width: 130px; height: 100px; background: #f0f0f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #999;"><i class="fas fa-image" style="font-size: 30px;"></i></div>';
         }
         html += '</td>';
         html += '</tr>';
         
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Propietario</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(inmueble.nombrePropietario || '-') + 'NonNull';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>M² C / M² T</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.areaConstruida || '0') + ' / ' + (inmueble.areaTerreno || '0') + 'NonNull';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Antigüedad (años)</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.antiguedad || '-') + 'NonNull';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Habitaciones / Baños</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.numHabitaciones || '-') + ' / ' + (inmueble.numBanos || '-') + 'NonNull';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Estacionamiento</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.puestoEstacionamiento || '-') + 'NonNull';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Propietario</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(inmueble.nombrePropietario || '-') + '</td>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>M² C / M² T</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.areaConstruida || '0') + ' / ' + (inmueble.areaTerreno || '0') + '</td>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Antigüedad (años)</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.antiguedad || '-') + '</td>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Habitaciones / Baños</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.numHabitaciones || '-') + ' / ' + (inmueble.numBanos || '-') + '</td>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Estacionamiento</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (inmueble.puestoEstacionamiento || '-') + '</td>';
         
         if (inmueble.descripcion) {
-            html += '<tr><td style="padding: 8px;"><strong>Descripción</strong></td><td colspan="2">' + escapeHtml(inmueble.descripcion) + 'NonNull';
+            html += '<tr><td style="padding: 8px;"><strong>Descripción</strong></td><td colspan="2">' + escapeHtml(inmueble.descripcion) + '</td>';
         }
         html += '</table>';
         html += '</div>';
 
-        // ─────────────────────────────────────────────────────────────
-        // REFERENCIAS EN PROMOCIÓN
-        // ─────────────────────────────────────────────────────────────
+        // Referencias en Promoción
         if (referenciasPromocion.length > 0) {
             html += '<div style="margin-bottom: 20px;">';
             html += '<h3 style="color: #B8A279; font-size: 14px;">1. VALOR REFERENCIAL DE INMUEBLES COMPARABLES EN PROMOCIÓN</h3>';
@@ -284,7 +244,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
                 html += '</tr>';
             }
 
-            // Fila de enlaces
+            // Enlaces
             html += '<tr>';
             html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Enlace</strong></td>';
             for (var j = 0; j < referenciasPromocion.length; j++) {
@@ -294,12 +254,12 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             }
             html += '</tr>';
 
-            // Fila de fotos
+            // Fotos
             html += '<tr>';
             html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Foto</strong></td>';
             for (var j = 0; j < referenciasPromocion.length; j++) {
                 var fotoId = referenciasPromocion[j].fotoId;
-                var fotoHtml = fotoId ? '<img src="api/v1/Attachment/file/' + escapeHtml(fotoId) + '" style="max-width: 50px; max-height: 50px; border-radius: 4px;" onerror="this.style.display=\'none\'">' : '-';
+                var fotoHtml = fotoId ? '<img src="' + this.getImageUrl(fotoId) + '" style="max-width: 50px; max-height: 50px; border-radius: 4px;" onerror="this.style.display=\'none\'">' : '-';
                 html += '<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' + fotoHtml + '</td>';
             }
             html += '</tr>';
@@ -308,9 +268,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             html += '</div></div>';
         }
 
-        // ─────────────────────────────────────────────────────────────
-        // REFERENCIAS VENDIDOS
-        // ─────────────────────────────────────────────────────────────
+        // Referencias Vendidos
         if (referenciasVendidos.length > 0) {
             html += '<div style="margin-bottom: 20px;">';
             html += '<h3 style="color: #B8A279; font-size: 14px;">2. VALOR REFERENCIAL DE INMUEBLES VENDIDOS</h3>';
@@ -321,7 +279,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             for (var i = 0; i < referenciasVendidos.length; i++) {
                 html += '<th style="padding: 8px; border: 1px solid #ddd;">REF ' + (i + 1) + '</th>';
             }
-            html += '</td></thead><tbody>';
+            html += '<tr></thead><tbody>';
 
             for (var r = 0; r < rows.length; r++) {
                 html += '<tr>';
@@ -332,7 +290,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
                 html += '</tr>';
             }
 
-            // Fila de enlaces
+            // Enlaces
             html += '<tr>';
             html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Enlace</strong></td>';
             for (var j = 0; j < referenciasVendidos.length; j++) {
@@ -342,12 +300,12 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             }
             html += '</tr>';
 
-            // Fila de fotos
+            // Fotos
             html += '<tr>';
             html += '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Foto</strong></td>';
             for (var j = 0; j < referenciasVendidos.length; j++) {
                 var fotoId = referenciasVendidos[j].fotoId;
-                var fotoHtml = fotoId ? '<img src="api/v1/Attachment/file/' + escapeHtml(fotoId) + '" style="max-width: 50px; max-height: 50px; border-radius: 4px;" onerror="this.style.display=\'none\'">' : '-';
+                var fotoHtml = fotoId ? '<img src="' + this.getImageUrl(fotoId) + '" style="max-width: 50px; max-height: 50px; border-radius: 4px;" onerror="this.style.display=\'none\'">' : '-';
                 html += '<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' + fotoHtml + '</td>';
             }
             html += '</tr>';
@@ -356,9 +314,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             html += '</div></div>';
         }
 
-        // ─────────────────────────────────────────────────────────────
         // FODA
-        // ─────────────────────────────────────────────────────────────
         if (fortalezas.length > 0 || debilidades.length > 0) {
             html += '<div style="margin-bottom: 20px;">';
             html += '<h3 style="color: #B8A279; font-size: 14px;">3. ANÁLISIS DE FORTALEZAS Y DEBILIDADES</h3>';
@@ -392,9 +348,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             html += '</div></div>';
         }
 
-        // ─────────────────────────────────────────────────────────────
-        // FACTORES QUE INFLUYEN EN EL PRECIO
-        // ─────────────────────────────────────────────────────────────
+        // Factores que influyen en el precio
         if (factoresAplicados.length > 0) {
             html += '<div style="margin-bottom: 20px;">';
             html += '<h3 style="color: #B8A279; font-size: 14px;">4. FACTORES QUE INFLUYEN EN EL PRECIO</h3>';
@@ -424,7 +378,6 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             html += '</tbody></table>';
             html += '</div>';
             
-            // Mostrar total de impacto
             var signoTotal = totalImpactoFactores >= 0 ? '+' : '';
             var claseTotal = totalImpactoFactores >= 0 ? '#27ae60' : '#e74c3c';
             html += '<div style="background: #f0f0f0; border-left: 4px solid #B8A279; padding: 12px; margin-top: 16px; text-align: center; font-size: 13px;">';
@@ -434,22 +387,18 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             html += '</div>';
         }
 
-        // ─────────────────────────────────────────────────────────────
-        // SITUACIÓN LEGAL
-        // ─────────────────────────────────────────────────────────────
+        // Situación Legal
         html += '<div style="margin-bottom: 20px;">';
         html += '<h3 style="color: #B8A279; font-size: 14px;">5. Situación Legal</h3>';
         html += '<table style="width: 100%; border-collapse: collapse; font-size: 12px;">';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee; width: 30%;"><strong>Cédula Catastral</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; width: 15%;">' + (legal.cedulaCatastral ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(legal.cedCatNota || '') + 'NonNull';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Registro de Propiedad</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.registroPropiedad ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(legal.regProNota || '') + 'NonNull';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Solvencia Municipal</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.solvenciaMunicipal ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(legal.solMunNota || '') + 'NonNull';
-        html += '<tr><td style="padding: 8px;"><strong>Comentario Adicional</strong></td><td colspan="2">' + (legal.comentarioLegal ? escapeHtml(legal.comLegNota || '') : 'No hay comentarios') + 'NonNull';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee; width: 30%;"><strong>Cédula Catastral</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee; width: 15%;">' + (legal.cedulaCatastral ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(legal.cedCatNota || '') + '</td>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Registro de Propiedad</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.registroPropiedad ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(legal.regProNota || '') + '</td>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Solvencia Municipal</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + (legal.solvenciaMunicipal ? 'Sí' : 'No') + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">' + escapeHtml(legal.solMunNota || '') + '</td>';
+        html += '<tr><td style="padding: 8px;"><strong>Comentario Adicional</strong></td><td colspan="2">' + (legal.comentarioLegal ? escapeHtml(legal.comLegNota || '') : 'No hay comentarios') + '</td>';
         html += '</table>';
         html += '</div>';
 
-        // ─────────────────────────────────────────────────────────────
-        // FRASE DORADA ANTES DE ANÁLISIS INTEGRAL
-        // ─────────────────────────────────────────────────────────────
+        // Frase dorada
         html += '<div style="background: linear-gradient(135deg, #F5E6CA 0%, #E8D5B0 100%); border-left: 6px solid #B8A279; border-radius: 8px; padding: 16px 24px; margin: 24px 0; text-align: center;">';
         html += '<p style="color: #8B6914; font-size: 16px; font-weight: 600; margin: 0;">';
         html += '<i class="fas fa-quote-left" style="margin-right: 10px;"></i>';
@@ -458,9 +407,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         html += '</p>';
         html += '</div>';
 
-        // ─────────────────────────────────────────────────────────────
-        // ANÁLISIS INTEGRAL Y PRECIO
-        // ─────────────────────────────────────────────────────────────
+        // Análisis Integral y Precio
         html += '<div style="margin-bottom: 20px;">';
         html += '<h3 style="color: #B8A279; font-size: 14px;">6. Análisis Integral</h3>';
         html += '<table style="width: 100%; border-collapse: collapse; font-size: 12px;">';
@@ -469,9 +416,9 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         html += '<td style="padding: 8px;"><strong>USD x m²</strong></td>';
         html += '<td style="padding: 8px;"><strong>Precio (USD)</strong></td>';
         html += '</tr>';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Máximo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPriceDec(valorMax) + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPrice(precioMax) + 'NonNull';
-        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Mínimo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPriceDec(valorMin) + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPrice(precioMin) + 'NonNull';
-        html += '<tr><td style="padding: 8px;">Precio Promedio de salida al mercado</td><td style="padding: 8px;">$ ' + formatPriceDec(valorPromedio) + '</td><td style="padding: 8px;">$ ' + formatPrice(precioOriginal) + 'NonNull';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Máximo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPriceDec(valorMax) + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPrice(precioMax) + '</td>';
+        html += '<tr><td style="padding: 8px; border-bottom: 1px solid #eee;">Precio Promedio Mínimo</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPriceDec(valorMin) + '</td><td style="padding: 8px; border-bottom: 1px solid #eee;">$ ' + formatPrice(precioMin) + '</td>';
+        html += '<tr><td style="padding: 8px;">Precio Promedio de salida al mercado</td><td style="padding: 8px;">$ ' + formatPriceDec(valorPromedio) + '</td><td style="padding: 8px;">$ ' + formatPrice(precioOriginal) + '</td>';
         html += '</table>';
 
         // Rango de Precio Sugerido
@@ -491,9 +438,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         html += '</div>';
         html += '</div>';
 
-        // ─────────────────────────────────────────────────────────────
-        // OPCIONES DE DECISIÓN
-        // ─────────────────────────────────────────────────────────────
+        // Opciones de Decisión
         if (decisiones.length > 0) {
             html += '<div style="margin-bottom: 20px;">';
             html += '<h3 style="color: #B8A279; font-size: 14px;">7. OPCIONES DE DECISIÓN</h3>';
@@ -506,9 +451,7 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             html += '</div>';
         }
 
-        // ─────────────────────────────────────────────────────────────
-        // PLAN DE TRABAJO Y MEDIOS
-        // ─────────────────────────────────────────────────────────────
+        // Plan de Trabajo y Medios
         if (planes.length > 0 || canales.length > 0) {
             html += '<div style="margin-bottom: 20px;">';
             html += '<h3 style="color: #B8A279; font-size: 14px;">8. PLAN DE TRABAJO</h3>';
@@ -531,16 +474,14 @@ define('ave:views/ave-principal/modules/preview', [], function () {
             html += '</div>';
         }
 
-        // ─────────────────────────────────────────────────────────────
-        // FOOTER - Datos del asesor al final del reporte
-        // ─────────────────────────────────────────────────────────────
+        // Footer
         html += '<div style="margin-top: 40px; padding: 20px; background: #f5f5f5; border-radius: 8px; text-align: center; border-top: 3px solid #B8A279;">';
         html += '<p style="margin-bottom: 15px; font-size: 12px; color: #666;">Sr(a) ' + escapeHtml(ave.nombreCliente || 'Cliente') + ', nuestra mayor satisfacción es poner a su disposición la información necesaria y datos referenciales que le sirvan de apoyo para tomar la mejor decisión en la venta de su inmueble y poder contribuir en el bienestar de su familia, siempre a sus órdenes para brindarle el mejor servicio inmobiliario.</p>';
         html += '<hr style="margin: 15px auto; width: 50%; border-color: #ddd;">';
         html += '<p style="font-size: 14px; margin-bottom: 10px;"><strong>Saludos cordiales,</strong></p>';
         html += '<div style="display: flex; align-items: center; justify-content: center; gap: 15px; flex-wrap: wrap;">';
         if (assignedUserImageId) {
-            html += '<img src="' + escapeHtml(getImageUrl(assignedUserImageId)) + '" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #B8A279;" onerror="this.style.display=\'none\'">';
+            html += '<img src="' + this.getImageUrl(assignedUserImageId) + '" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #B8A279;" onerror="this.style.display=\'none\'">';
         } else {
             html += '<div style="width: 60px; height: 60px; border-radius: 50%; background: #B8A279; display: flex; align-items: center; justify-content: center;"><i class="fas fa-user" style="color: white; font-size: 28px;"></i></div>';
         }
