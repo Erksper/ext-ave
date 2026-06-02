@@ -422,23 +422,67 @@ class AvePrincipal extends RecordService
 
     public function generarPdf(string $aveId): void
     {
-        $em     = $this->entityManager;
+        $em = $this->entityManager;
         $entity = $em->getEntity('AvePrincipal', $aveId);
         if (!$entity) throw new NotFound("AvePrincipal '$aveId' no encontrado.");
 
-        $data    = $this->getOrCreate($aveId);
-        $ave     = $data['data']['ave'];
-        $inmueble          = $data['data']['inmueble']          ?? [];
-        $referencias       = $data['data']['referencias']       ?? [];
-        $analisis          = $data['data']['analisis']          ?? [];
+        // Obtener los mismos datos que usa la vista previa
+        $data = $this->getOrCreate($aveId);
+        $ave = $data['data']['ave'];
+        $inmueble = $data['data']['inmueble'] ?? [];
+        $referencias = $data['data']['referencias'] ?? [];
+        $analisis = $data['data']['analisis'] ?? [];
         $factoresAplicados = $data['data']['factoresAplicados'] ?? [];
-        $decisiones        = $data['data']['decisiones']        ?? [];
-        $canales           = $data['data']['canales']           ?? [];
-        $planes            = $data['data']['planes']            ?? [];
+        $decisiones = $data['data']['decisiones'] ?? [];
+        $canales = $data['data']['canales'] ?? [];
+        $planes = $data['data']['planes'] ?? [];
 
-        $html = $this->buildPdfHtml($ave, $inmueble, $referencias, $analisis, $factoresAplicados, $decisiones, $canales, $planes);
+        // Calcular datos adicionales
+        $totalImpactoFactores = 0;
+        foreach ($factoresAplicados as $factor) {
+            $totalImpactoFactores += ($factor['tipo'] ?? '') === 'positivo' ? 1 : -1;
+        }
 
-        $rootDir    = dirname(__DIR__, 5);
+        $precioOriginal = $ave['precioOriginal'] ?? 0;
+        $ajustePrecio = $ave['ajustePrecio'] ?? 0;
+        $pesoOfertas = $ave['pesoOfertas'] ?? 50;
+        $pesoVentas = 100 - $pesoOfertas;
+        $precioConFactores = $precioOriginal * (1 + $totalImpactoFactores / 100);
+        $rangoMin = round($precioOriginal * (1 - $ajustePrecio / 100));
+        $rangoMax = round($precioOriginal * (1 + $ajustePrecio / 100));
+
+        // Logo de la oficina
+        $teamLogoUrl = null;
+        $assignedUserId = $ave['assignedUserId'] ?? null;
+        if ($assignedUserId) {
+            $user = $em->getEntity('User', $assignedUserId);
+            if ($user) {
+                $teamIds = $user->get('teamsIds');
+                if ($teamIds && is_array($teamIds)) {
+                    $oficinaId = null;
+                    foreach ($teamIds as $tid) {
+                        if (strpos($tid, 'CLA') !== 0) {
+                            $oficinaId = $tid;
+                            break;
+                        }
+                    }
+                    if ($oficinaId) {
+                        $logoUser = $em->getRepository('User')
+                            ->where(['userName' => $oficinaId, 'deleted' => 0])
+                            ->findOne();
+                        if ($logoUser && $logoUser->get('cImagenId')) {
+                            $teamLogoUrl = 'api/v1/Attachment/file/' . $logoUser->get('cImagenId');
+                        }
+                    }
+                }
+            }
+        }
+
+        // Construir el HTML usando la misma estructura que preview.js
+        $html = $this->buildPdfHtml($ave, $inmueble, $referencias, $analisis, $factoresAplicados, $decisiones, $canales, $planes, $totalImpactoFactores, $precioConFactores, $rangoMin, $rangoMax, $pesoOfertas, $pesoVentas, $ajustePrecio, $teamLogoUrl);
+
+        // Generar PDF
+        $rootDir = dirname(__DIR__, 5);
         $dompdfPath = $rootDir . '/vendor/dompdf/dompdf/src/Dompdf.php';
 
         if (file_exists($dompdfPath)) {
@@ -457,33 +501,72 @@ class AvePrincipal extends RecordService
         exit;
     }
 
-    private function buildPdfHtml(array $ave, array $inmueble, array $referencias, array $analisis, array $factoresAplicados, array $decisiones, array $canales, array $planes): string
+    private function buildPdfHtml($ave, $inmueble, $referencias, $analisis, $factoresAplicados, $decisiones, $canales, $planes, $totalImpactoFactores, $precioConFactores, $rangoMin, $rangoMax, $pesoOfertas, $pesoVentas, $ajustePrecio, $teamLogoUrl): string
     {
-        $nombreCliente = htmlspecialchars($ave['nombreCliente'] ?? 'Cliente');
-        $numeroAve     = htmlspecialchars($ave['numeroAve']     ?? 'N/A');
-        $fecha         = date('d/m/Y');
-
         $refPromocion = array_filter($referencias, fn($r) => ($r['tipo'] ?? '') === 'promocion');
-        $refVendidos  = array_filter($referencias, fn($r) => ($r['tipo'] ?? '') === 'vendido');
-        $fortalezas   = array_filter($analisis,    fn($a) => ($a['tipo'] ?? '') === 'fortaleza');
-        $debilidades  = array_filter($analisis,    fn($a) => ($a['tipo'] ?? '') === 'debilidad');
+        $refVendidos = array_filter($referencias, fn($r) => ($r['tipo'] ?? '') === 'vendido');
+        $fortalezas = array_filter($analisis, fn($a) => ($a['tipo'] ?? '') === 'fortaleza');
+        $debilidades = array_filter($analisis, fn($a) => ($a['tipo'] ?? '') === 'debilidad');
 
-        $fmtUSD = fn($v) => $v ? '$ ' . number_format((float)$v, 2, '.', ',') : '-';
-        $esc    = fn($t) => htmlspecialchars((string)($t ?? ''), ENT_QUOTES);
+        $fmtUSD = fn($v) => $v ? '$ ' . number_format((float)$v, 0, ',', '.') : '-';
+        $fmtUSDD = fn($v) => $v ? '$ ' . number_format((float)$v, 2, ',', '.') : '-';
+        $esc = fn($t) => htmlspecialchars((string)($t ?? ''), ENT_QUOTES, 'UTF-8');
 
-        $totalImpacto = 0;
-        foreach ($factoresAplicados as $factor) {
-            $totalImpacto += ($factor['tipo'] ?? '') === 'positivo' ? 1 : -1;
+        // Obtener URL base para imágenes
+        $baseUrl = (isset($_SERVER['HTTPS']) ? 'https://' : 'http://') . $_SERVER['HTTP_HOST'] . '/';
+        // Si el sistema está en un subdirectorio, ajustar
+        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
+        if (strpos($scriptName, '/public/') !== false) {
+            $baseUrl = $baseUrl . 'api/v1/';
+        } else {
+            $baseUrl = $baseUrl . 'api/v1/';
         }
 
-        $html  = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">';
+        $getImageUrl = function($imageId) use ($baseUrl) {
+            if (!$imageId) return null;
+            return $baseUrl . 'Attachment/file/' . $imageId;
+        };
+
+        $formatTipo = function($tipo) {
+            $map = [
+                'departamento' => 'Departamento',
+                'casa' => 'Casa',
+                'comercial' => 'Comercial',
+                'industrial' => 'Industrial',
+                'vacacional' => 'Vacacional',
+                'terreno' => 'Terreno'
+            ];
+            return $map[$tipo] ?? $tipo ?? '-';
+        };
+
+        $formatSubtipo = function($subtipo) {
+            if (!$subtipo) return '-';
+            $map = [
+                'apartamento' => 'Apartamento',
+                'casa' => 'Casa',
+                'town-house' => 'Town-House',
+                'terreno' => 'Terreno',
+                'edificio' => 'Edificio',
+                'oficinas' => 'Oficinas',
+                'local' => 'Local',
+                'penthouse' => 'Penthouse',
+                'galpon' => 'Galpón',
+                'quinta' => 'Quinta'
+            ];
+            return $map[$subtipo] ?? ucfirst(str_replace('-', ' ', $subtipo));
+        };
+
+        $fechaActual = date('d/m/Y');
+        $horaActual = date('H:i');
+
+        $html = '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">';
         $html .= '<style>
-            body { font-family: Arial, sans-serif; font-size: 13px; color: #363438; margin: 0; padding: 20px; }
+            body { font-family: Arial, sans-serif; font-size: 12px; color: #363438; margin: 0; padding: 20px; }
             h1 { color: #B8A279; text-align: center; font-size: 20px; margin-bottom: 4px; }
             h2 { color: #555; text-align: center; font-size: 15px; margin: 0 0 20px; }
             h3 { color: #B8A279; font-size: 14px; margin: 20px 0 8px; border-bottom: 2px solid #B8A279; padding-bottom: 4px; }
             h4 { font-size: 13px; margin: 12px 0 6px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 12px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 11px; }
             th { background: #B8A279; color: white; padding: 8px; text-align: left; }
             td { padding: 7px 8px; border-bottom: 1px solid #eee; }
             .intro { background: #f8f9fa; border-left: 4px solid #B8A279; padding: 14px 18px; margin-bottom: 20px; line-height: 1.6; text-align: justify; }
@@ -508,71 +591,128 @@ class AvePrincipal extends RecordService
             .ref-table th, .ref-table td { border: 1px solid #ddd; padding: 6px; text-align: left; }
             .ref-table th { background: #B8A279; color: white; }
             .foto-thumb { max-width: 50px; max-height: 50px; border-radius: 4px; }
+            .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #B8A279; padding-bottom: 15px; }
+            .logo { width: 150px; text-align: left; }
+            .logo img { max-height: 80px; max-width: 150px; object-fit: contain; }
+            .titulo { flex: 1; text-align: center; }
+            .cliente { width: 150px; text-align: right; }
+            .ubicacion-box { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+            .ficha-inmueble { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
+            .ficha-inmueble table { margin-bottom: 0; }
+            .foto-inmueble { width: 130px; text-align: center; vertical-align: middle; }
+            .foto-inmueble img { max-width: 130px; max-height: 130px; border-radius: 8px; border: 1px solid #ddd; }
+            .frase-dorada { background: linear-gradient(135deg, #F5E6CA 0%, #E8D5B0 100%); border-left: 6px solid #B8A279; border-radius: 8px; padding: 16px 24px; margin: 24px 0; text-align: center; color: #8B6914; font-size: 16px; font-weight: 600; }
         </style></head><body>';
 
-        $html .= '<h1>ANÁLISIS PARA UNA VENTA EXITOSA</h1>';
-        $html .= '<h2>' . $nombreCliente . '</h2>';
-        $html .= '<div class="intro">Estimado(a) ' . $nombreCliente . ', reciba de todo el equipo que labora en nuestras oficinas un cordial saludo de respeto hacia usted por brindarnos su confianza. Le presentamos el siguiente Análisis de Venta Exitoso correspondiente a su propiedad; con el propósito de mostrarle referencias actuales del mercado inmobiliario que le ayuden a tomar la mejor decisión sobre el valor promocional de su inmueble y realizar un excelente negocio inmobiliario.</div>';
-        $html .= '<p style="text-align:center;"><strong>Ref: ' . $numeroAve . '</strong></p>';
-
-        if (!empty($inmueble['fotoId'])) {
-            $html .= '<div style="text-align:center; margin:16px 0;"><img src="api/v1/Attachment/file/' . $esc($inmueble['fotoId']) . '" style="max-width:320px; max-height:220px; border-radius:8px; border:1px solid #ddd;"></div>';
+        // Header
+        $html .= '<div class="header">';
+        $html .= '<div class="logo">';
+        if ($teamLogoUrl) {
+            $html .= '<img src="' . $teamLogoUrl . '" onerror="this.style.display=\'none\'">';
+        } else {
+            $html .= '<div style="width: 80px; height: 80px; background: #B8A279; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 40px;">🏢</div>';
         }
+        $html .= '</div>';
+        $html .= '<div class="titulo">';
+        $html .= '<h1 style="margin: 0;">ANÁLISIS PARA UNA VENTA EXITOSA</h1>';
+        $html .= '<p style="margin: 5px 0 0; font-size: 12px; color: #666;">Ref: ' . $esc($ave['numeroAve'] ?? 'N/A') . '</p>';
+        $html .= '</div>';
+        $html .= '<div class="cliente">';
+        $html .= '<div style="font-weight: 700; font-size: 12px; color: #B8A279;">Cliente:</div>';
+        $html .= '<div style="font-size: 11px;">' . $esc($ave['nombreCliente'] ?? 'Cliente') . '</div>';
+        $html .= '</div>';
+        $html .= '</div>';
 
+        // Introducción
+        $html .= '<div class="intro">Estimado(a) ' . $esc($ave['nombreCliente'] ?? 'Cliente') . ', Reciba de todo el equipo que labora en nuestras oficinas un cordial saludo de respeto hacia usted por brindarnos su confianza. Le presentamos el siguiente Análisis de Venta Exitoso correspondiente a su propiedad; con el propósito de mostrarle referencias actuales del mercado inmobiliario que le ayuden a tomar la mejor decisión sobre el valor promocional de su inmueble y realizar un excelente negocio inmobiliario.</div>';
+
+        // Ubicación
         $ubicacion = implode(', ', array_filter([$inmueble['urbanizacion'] ?? '', $inmueble['avenidaCalle'] ?? '', $inmueble['ciudad'] ?? '', $inmueble['estado'] ?? '']));
-        $html .= '<h3>Ubicación</h3><p>' . $esc($ubicacion ?: 'No especificada') . '</p>';
+        $html .= '<div class="ubicacion-box">';
+        $html .= '<h3 style="margin-top: 0;"><i class="fas fa-map-marker-alt"></i> Ubicación</h3>';
+        $html .= '<p><strong>' . $esc($ubicacion ?: 'No especificada') . '</strong></p>';
+        $html .= '</div>';
 
-        $html .= '<h3>Ficha del Inmueble</h3>';
-        $html .= '<table><tr><th style="width:40%;">Campo</th><th>Valor</th></tr>';
-        $ficha = [
-            'Tipo de inmueble'     => ucfirst($inmueble['tipoPropiedad'] ?? '-') . ' - ' . ucfirst($inmueble['subtipoPropiedad'] ?? '-'),
-            'Propietario'          => $inmueble['nombrePropietario']      ?? '-',
-            'M² C / M² T'          => ($inmueble['areaConstruida'] ?? '0') . ' / ' . ($inmueble['areaTerreno'] ?? '0'),
-            'Antigüedad (años)'    => $inmueble['antiguedad']             ?? '-',
-            'Habitaciones / Baños' => ($inmueble['numHabitaciones'] ?? '-') . ' / ' . ($inmueble['numBanos'] ?? '-'),
-            'Estacionamiento'      => $inmueble['puestoEstacionamiento']  ?? '-',
-        ];
-        foreach ($ficha as $label => $val) {
-            $html .= '<tr><td><strong>' . $esc($label) . '</strong></td><td>' . $esc($val) . '</td></tr>';
+        // Ficha del Inmueble
+        $html .= '<div class="ficha-inmueble">';
+        $html .= '<h3 style="margin-top: 0;"><i class="fas fa-building"></i> Ficha del Inmueble</h3>';
+        $html .= '<table>';
+        $html .= '<tr>';
+        $html .= '<td style="width: 30%;"><strong>Tipo de inmueble</strong></td>';
+        $html .= '<td>' . $esc($formatTipo($inmueble['tipoPropiedad'] ?? '')) . ' - ' . $esc($formatSubtipo($inmueble['subtipoPropiedad'] ?? '')) . '</td>';
+        $html .= '<td rowspan="6" class="foto-inmueble">';
+        if (!empty($inmueble['fotoId'])) {
+            $imgUrl = $getImageUrl($inmueble['fotoId']);
+            $html .= '<img src="' . $imgUrl . '" style="max-width: 130px; max-height: 130px; border-radius: 8px; border: 1px solid #ddd;" onerror="this.style.display=\'none\'">';
+        } else {
+            $html .= '<div style="width: 130px; height: 100px; background: #f0f0f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #999;"><i class="fas fa-image" style="font-size: 30px;"></i></div>';
         }
+        $html .= '</td>';
+        $html .= '</tr>';
+        $html .= '<tr><td><strong>Propietario</strong></td><td>' . $esc($inmueble['nombrePropietario'] ?? '-') . '</td></tr>';
+        $html .= '<tr><td><strong>M² C / M² T</strong></td><td>' . ($inmueble['areaConstruida'] ?? '0') . ' / ' . ($inmueble['areaTerreno'] ?? '0') . '</td></tr>';
+        $html .= '<tr><td><strong>Antigüedad (años)</strong></td><td>' . ($inmueble['antiguedad'] ?? '-') . '</td></tr>';
+        $html .= '<tr><td><strong>Habitaciones / Baños</strong></td><td>' . ($inmueble['numHabitaciones'] ?? '-') . ' / ' . ($inmueble['numBanos'] ?? '-') . '</td></tr>';
+        $html .= '<tr><td><strong>Estacionamiento</strong></td><td>' . ($inmueble['puestoEstacionamiento'] ?? '-') . '</td></tr>';
         if (!empty($inmueble['descripcion'])) {
-            $html .= '<tr><td><strong>Descripción</strong></td><td>' . $esc($inmueble['descripcion']) . '</td></tr>';
+            $html .= '<tr><td><strong>Descripción</strong></td><td colspan="2">' . $esc($inmueble['descripcion']) . 'NonNull';
         }
         $html .= '</table>';
+        $html .= '</div>';
 
-        $buildRefTable = function (array $refs, string $titulo) use ($esc, $fmtUSD): string {
+        // Tabla de referencias
+        $buildRefTable = function($refs, $titulo) use ($esc, $fmtUSD, $formatTipo, $formatSubtipo, $getImageUrl) {
             if (empty($refs)) return '';
             $refs = array_values($refs);
-            $h  = '<h3>' . $titulo . '</h3><div><table class="ref-table"><thead><tr><th>Característica</th>';
+            $h = '<h3>' . $titulo . '</h3><div><table class="ref-table"><thead><tr><th>Característica</th>';
             foreach ($refs as $i => $r) { $h .= '<th>REF ' . ($i + 1) . '</th>'; }
             $h .= '</tr></thead><tbody>';
+            
             $rowDefs = [
-                'Tipo'            => fn($r) => $esc(($r['tipoPropiedad'] ?? '') . ' - ' . ($r['subtipoPropiedad'] ?? '')),
-                'M² C / M² T'     => fn($r) => $esc(($r['areaConstruida'] ?? '0') . ' / ' . ($r['areaTerreno'] ?? '0')),
-                'Antigüedad'      => fn($r) => $esc($r['antiguedad'] ?? '-'),
-                'Hab / Baños'     => fn($r) => $esc(($r['habitaciones'] ?? '-') . ' / ' . ($r['banos'] ?? '-')),
+                'Tipo' => fn($r) => $esc($formatTipo($r['tipoPropiedad'] ?? '') . ' - ' . $formatSubtipo($r['subtipoPropiedad'] ?? '')),
+                'M² C / M² T' => fn($r) => $esc(($r['areaConstruida'] ?? '0') . ' / ' . ($r['areaTerreno'] ?? '0')),
+                'Antigüedad' => fn($r) => $esc($r['antiguedad'] ?? '-'),
+                'Hab / Baños' => fn($r) => $esc(($r['habitaciones'] ?? '-') . ' / ' . ($r['banos'] ?? '-')),
                 'Estacionamiento' => fn($r) => $esc($r['estacionamiento'] ?? '-'),
-                'Terraza'         => fn($r) => $esc($r['terraza'] ? 'Sí' : 'No'),
-                'Valor (USD)'     => fn($r) => $fmtUSD($r['valorReferencial'] ?? null),
-                'USD x M²'        => fn($r) => $fmtUSD($r['valorm2'] ?? null),
-                'Acabados'        => fn($r) => $esc($r['acabados'] ?? '-'),
+                'Terraza' => fn($r) => $esc($r['terraza'] ? 'Sí' : 'No'),
+                'Valor (USD)' => fn($r) => $fmtUSD($r['valorReferencial'] ?? null),
+                'USD x M²' => fn($r) => $fmtUSD($r['valorm2'] ?? null),
+                'Acabados' => fn($r) => $esc($r['acabados'] ?? '-'),
             ];
+            
             foreach ($rowDefs as $label => $fn) {
-                $h .= '<tr><td><strong>' . $label . '</strong></td>';
-                foreach ($refs as $r) { $h .= '<td>' . $fn($r) . '</td>'; }
+                $h .= '<tr>';
+                $h .= '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>' . $label . '</strong></td>';
+                foreach ($refs as $r) { $h .= '<td style="padding: 8px; border: 1px solid #ddd;">' . $fn($r) . '</td>'; }
                 $h .= '</tr>';
             }
-            $h .= '<tr><td><strong>Enlace</strong></td>';
-            foreach ($refs as $r) { $enlace = $r['enlace'] ?? ''; $h .= '<td>' . ($enlace ? '<a href="' . $esc($enlace) . '">Ver</a>' : '-') . '</td>'; }
-            $h .= '</tr><tr><td><strong>Foto</strong></td>';
-            foreach ($refs as $r) { $fid = $r['fotoId'] ?? ''; $h .= '<td>' . ($fid ? '<img src="api/v1/Attachment/file/' . $esc($fid) . '" class="foto-thumb">' : '-') . '</td>'; }
-            $h .= '</tr></tbody></table></div>';
+            
+            // Fila de enlaces - mostrar URL completa
+            $h .= '<tr>';
+            $h .= '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Enlace</strong></td>';
+            foreach ($refs as $r) { 
+                $enlace = $r['enlace'] ?? ''; 
+                $h .= '<td style="padding: 8px; border: 1px solid #ddd;">' . ($enlace ? '<a href="' . $esc($enlace) . '" target="_blank" rel="noopener">' . $esc($enlace) . '</a>' : '-') . '</td>';
+            }
+            $h .= '<tr>';
+            
+            // Fila de fotos
+            $h .= '<tr>';
+            $h .= '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Foto</strong></td>';
+            foreach ($refs as $r) { 
+                $fid = $r['fotoId'] ?? ''; 
+                $h .= '<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' . ($fid ? '<img src="' . $getImageUrl($fid) . '" style="max-width: 50px; max-height: 50px; border-radius: 4px;" onerror="this.style.display=\'none\'">' : '-') . '</td>';
+            }
+            $h .= '</tr>';
+            
+            $h .= '</tbody></table></div>';
             return $h;
         };
 
         $html .= $buildRefTable(array_values($refPromocion), '1. VALOR REFERENCIAL DE INMUEBLES EN PROMOCIÓN');
-        $html .= $buildRefTable(array_values($refVendidos),  '2. VALOR REFERENCIAL DE INMUEBLES VENDIDOS');
+        $html .= $buildRefTable(array_values($refVendidos), '2. VALOR REFERENCIAL DE INMUEBLES VENDIDOS');
 
+        // FODA
         if (!empty($fortalezas) || !empty($debilidades)) {
             $html .= '<h3>3. ANÁLISIS DE FORTALEZAS Y DEBILIDADES</h3><div class="foda-grid">';
             $html .= '<div class="fortaleza-col"><h4 style="color:#155724; margin-top:0;">✓ Fortalezas</h4>';
@@ -582,50 +722,61 @@ class AvePrincipal extends RecordService
             $html .= '</div></div>';
         }
 
+        // Factores
         if (!empty($factoresAplicados)) {
             $html .= '<h3>4. FACTORES QUE INFLUYEN EN EL PRECIO</h3><table class="ref-table"><thead><tr><th>Factor</th><th style="width:120px; text-align:center;">Impacto</th><th style="width:100px; text-align:center;">% Afectación</th></tr></thead><tbody>';
             foreach ($factoresAplicados as $factor) {
                 $esPos = ($factor['tipo'] ?? '') === 'positivo';
                 $clase = $esPos ? 'impacto-positivo' : 'impacto-negativo';
-                $html .= '<tr><td>' . $esc($factor['factorName'] ?? '') . '</td><td style="text-align:center;" class="' . $clase . '">' . ($esPos ? '✓ Positivo' : '✗ Negativo') . '</td><td style="text-align:center; font-weight:bold;" class="' . $clase . '">' . ($esPos ? '+1%' : '-1%') . '</td></tr>';
+                $html .= '<tr>';
+                $html .= '<td style="padding: 8px; border: 1px solid #ddd;">' . $esc($factor['name'] ?? '') . '</td>';
+                $html .= '<td style="padding: 8px; border: 1px solid #ddd; text-align: center;" class="' . $clase . '">' . ($esPos ? '✓ Positivo' : '✗ Negativo') . '</td>';
+                $html .= '<td style="padding: 8px; border: 1px solid #ddd; text-align: center; font-weight: bold;" class="' . $clase . '">' . ($esPos ? '+1%' : '-1%') . '</td>';
+                $html .= '</tr>';
             }
             $html .= '</tbody></table>';
-            $signo = $totalImpacto >= 0 ? '+' : '';
-            $clase = $totalImpacto >= 0 ? 'impacto-positivo' : 'impacto-negativo';
-            $html .= '<div class="impacto-box"><strong>📊 Total de afectación:</strong> <span class="' . $clase . '">' . $signo . $totalImpacto . '%</span><br><small>El precio puede verse afectado en un <strong>' . $signo . abs($totalImpacto) . '%</strong></small></div>';
+            $signo = $totalImpactoFactores >= 0 ? '+' : '';
+            $clase = $totalImpactoFactores >= 0 ? 'impacto-positivo' : 'impacto-negativo';
+            $html .= '<div class="impacto-box"><strong>📊 Total de afectación:</strong> <span class="' . $clase . '">' . $signo . $totalImpactoFactores . '%</span><br><small>El precio puede verse afectado en un <strong>' . $signo . abs($totalImpactoFactores) . '%</strong></small></div>';
         }
 
+        // Situación Legal
         $html .= '<h3>5. Situación Legal</h3><table>';
         $camposLegal = [
-            'Cédula Catastral'      => ['bool' => 'cedulaCatastral',   'nota' => 'cedCatNota'],
+            'Cédula Catastral' => ['bool' => 'cedulaCatastral', 'nota' => 'cedCatNota'],
             'Registro de Propiedad' => ['bool' => 'registroPropiedad', 'nota' => 'regProNota'],
-            'Solvencia Municipal'   => ['bool' => 'solvenciaMunicipal','nota' => 'solMunNota'],
-            'Comentario Adicional'  => ['bool' => 'comentarioLegal',   'nota' => 'comLegNota'],
+            'Solvencia Municipal' => ['bool' => 'solvenciaMunicipal', 'nota' => 'solMunNota'],
+            'Comentario Adicional' => ['bool' => 'comentarioLegal', 'nota' => 'comLegNota'],
         ];
         foreach ($camposLegal as $label => $campo) {
-            $val  = !empty($ave[$campo['bool']]);
+            $val = !empty($ave[$campo['bool']]);
             $nota = $esc($ave[$campo['nota']] ?? '');
             $html .= '<tr><td style="width:30%;"><strong>' . $label . '</strong></td><td style="width:15%;" class="' . ($val ? 'legal-si' : 'legal-no') . '">' . ($val ? 'Sí' : 'No') . '</td><td>' . $nota . '</td></tr>';
         }
         $html .= '</table>';
 
-        $html .= '<div style="background: linear-gradient(135deg, #F5E6CA 0%, #E8D5B0 100%); border-left: 6px solid #B8A279; border-radius: 8px; padding: 16px 24px; margin: 24px 0; text-align: center;"><p style="color: #8B6914; font-size: 16px; font-weight: 600; margin: 0;">"De acuerdo a la información suministrada, ¿qué precio de salida al mercado le pondría usted a su propiedad?"</p></div>';
+        // Frase dorada
+        $html .= '<div class="frase-dorada">"De acuerdo a la información suministrada, ¿qué precio de salida al mercado le pondría usted a su propiedad?"</div>';
 
+        // Análisis Integral
         $html .= '<h3>6. Análisis Integral</h3><table>';
         $html .= '<tr style="background:#f5f5f5;"><td><strong>Síntesis de precio unitario Mts2</strong></td><td><strong>USD x m²</strong></td><td><strong>Precio (USD)</strong></td></tr>';
-        $html .= '<tr><td>Precio Promedio Máximo</td><td>' . $fmtUSD($ave['valorMax'] ?? null) . '</td><td>' . $fmtUSD($ave['precioMax'] ?? null) . '</td></tr>';
-        $html .= '<tr><td>Precio Promedio Mínimo</td><td>' . $fmtUSD($ave['valorMin'] ?? null) . '</td><td>' . $fmtUSD($ave['precioMin'] ?? null) . '</td></tr>';
-        $html .= '<tr><td>Promedio de salida al mercado</td><td>' . $fmtUSD($ave['valorPromedio'] ?? null) . '</td><td>' . $fmtUSD($ave['precioOriginal'] ?? null) . '</td></tr>';
+        $html .= '<tr><td>Precio Promedio Máximo</td><td>' . $fmtUSDD($ave['valorMax'] ?? 0) . '</td><td>' . $fmtUSD($ave['precioMax'] ?? 0) . '</td></tr>';
+        $html .= '<tr><td>Precio Promedio Mínimo</td><td>' . $fmtUSDD($ave['valorMin'] ?? 0) . '</td><td>' . $fmtUSD($ave['precioMin'] ?? 0) . '</td></tr>';
+        $html .= '<tr><td>Promedio de salida al mercado</td><td>' . $fmtUSDD($ave['valorPromedio'] ?? 0) . '</td><td>' . $fmtUSD($ave['precioOriginal'] ?? 0) . '</td></tr>';
         $html .= '</table>';
 
-        $precioConAjuste = ($ave['precioOriginal'] ?? 0) * (1 + $totalImpacto / 100);
-        $html .= '<div class="precio-box"><strong>Rango de Precio: ' . $fmtUSD($ave['precioMin'] ?? null) . ' — ' . $fmtUSD($ave['precioMax'] ?? null) . '</strong><br>Ponderación: ' . ($ave['pesoOfertas'] ?? 70) . '% Ofertas / ' . ($ave['pesoVentas'] ?? 30) . '% Ventas';
-        if ($totalImpacto != 0) {
-            $s = $totalImpacto >= 0 ? '+' : '';
-            $html .= '<br><span style="font-size:12px;">Ajuste por factores: ' . $s . $totalImpacto . '% → Precio ajustado: ' . $fmtUSD($precioConAjuste) . '</span>';
+        $html .= '<div class="precio-box">';
+        $html .= '<strong>Rango de Precio: ' . $fmtUSD($rangoMin) . ' — ' . $fmtUSD($rangoMax) . '</strong>';
+        $html .= '<br>Precio Sugerido: ' . $fmtUSD($ave['precioOriginal'] ?? 0) . ' (Ajuste: ' . $ajustePrecio . '%)';
+        $html .= '<br>Ponderación: ' . $pesoOfertas . '% Ofertas / ' . $pesoVentas . '% Ventas';
+        if ($totalImpactoFactores != 0) {
+            $s = $totalImpactoFactores >= 0 ? '+' : '';
+            $html .= '<br>Ajuste por factores: ' . $s . $totalImpactoFactores . '% → Precio con factores: ' . $fmtUSD($precioConFactores);
         }
         $html .= '</div>';
 
+        // Decisiones
         if (!empty($decisiones)) {
             $html .= '<h3>7. OPCIONES DE DECISIÓN</h3>';
             foreach ($decisiones as $i => $d) {
@@ -634,6 +785,7 @@ class AvePrincipal extends RecordService
             }
         }
 
+        // Plan de Trabajo
         if (!empty($planes) || !empty($canales)) {
             $html .= '<h3>8. PLAN DE TRABAJO</h3>';
             foreach ($planes as $i => $p) {
@@ -647,9 +799,17 @@ class AvePrincipal extends RecordService
             }
         }
 
-        $html .= '<div class="footer"><p>Nuestra mayor satisfacción es poner a su disposición la información necesaria y datos referenciales que le sirvan de apoyo para tomar la mejor decisión.</p><p><strong>Saludos cordiales</strong><br>' . $fecha . '</p></div>';
-        $html .= '</body></html>';
+        // Footer
+        $html .= '<div class="footer">';
+        $html .= '<p>Nuestra mayor satisfacción es poner a su disposición la información necesaria y datos referenciales que le sirvan de apoyo para tomar la mejor decisión.</p>';
+        $html .= '<p><strong>Saludos cordiales</strong><br>' . $esc($ave['assignedUserName'] ?? 'Asesor') . '<br>Asesor Inmobiliario</p>';
+        if (!empty($ave['teamName'])) {
+            $html .= '<p>🏢 ' . $esc($ave['teamName']) . '</p>';
+        }
+        $html .= '<p>Fecha de emisión: ' . $fechaActual . ' ' . $horaActual . '</p>';
+        $html .= '</div>';
 
+        $html .= '</body></html>';
         return $html;
     }
 
