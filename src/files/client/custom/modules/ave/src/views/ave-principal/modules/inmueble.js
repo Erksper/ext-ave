@@ -284,6 +284,10 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
             rancho: 'Rancho',
             fraccionamiento: 'Fraccionamiento'
         };
+        // Si el subtipo es "departamento" (valor antiguo), mapearlo a Apartamento
+        if (subtipo === 'departamento') {
+            return 'Apartamento';
+        }
         return map[subtipo] || subtipo.replace(/-/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
     };
 

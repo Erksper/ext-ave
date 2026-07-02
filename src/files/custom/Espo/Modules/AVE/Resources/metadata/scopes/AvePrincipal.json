@@ -1,5 +1,6 @@
 {
     "entity": true,
+    "layouts": true,
     "object": true,
     "importable": false,
     "stream": false,
@@ -7,8 +8,7 @@
     "type": "Base",
     "tab": true,
     "acl": true,
-    "aclPortal": false,
-    "hasAssignedUser": true,
-    "hasTeam": true,
-    "module": "AVE"
+    "module": "AVE",
+    "isCustom": true,
+    "customizable": true
 }

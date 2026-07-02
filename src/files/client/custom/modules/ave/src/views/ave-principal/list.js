@@ -1,3 +1,5 @@
+// client/custom/modules/ave/src/views/ave-principal/list.js
+
 define('ave:views/ave-principal/list', ['view'], function (Dep) {
 
     return Dep.extend({
@@ -49,10 +51,12 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                 var accion = $(e.currentTarget).data('accion');
                 this.cambiarStatus(id, statusActual, accion);
             },
-            'click .pag-btn': function (e) {
+            // CORREGIDO: Cambiar de '.pag-btn' a '.ave-pag-btn'
+            'click .ave-pag-btn': function (e) {
                 var pagina = $(e.currentTarget).data('pagina');
                 if (pagina && pagina !== this.pagina) {
-                    this.pagina = pagina;
+                    this.pagina = parseInt(pagina);
+                    console.log('Cambiando a página:', this.pagina);
                     this.cargarLista();
                 }
             },
@@ -83,18 +87,15 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
         // Función para verificar si el usuario puede aprobar/invalidar
         puedeAprobarOInvalidar: function () {
             if (!this.permisos) return false;
-            // Casa Nacional, Gerente, Director o Coordinador pueden aprobar/invalidar
-            // Asesor NO puede aprobar/invalidar
             return this.permisos.esCasaNacional || 
                    this.permisos.esGerente || 
                    this.permisos.esDirector || 
                    this.permisos.esCoordinador;
         },
 
-        // Función para verificar si el usuario puede imprimir (Asesores también pueden)
+        // Función para verificar si el usuario puede imprimir
         puedeImprimir: function () {
             if (!this.permisos) return true;
-            // Todos los usuarios pueden imprimir (Ver e Imprimir)
             return true;
         },
 
@@ -106,10 +107,7 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                         self.permisos = response.data;
                         self.aplicarVisibilidadFiltros();
                         self.cargarSelectsIniciales();
-                        
-                        // ← NUEVO: Aplicar filtros según el rol del usuario ANTES de cargar la lista
                         self.aplicarFiltrosPorRol();
-                        
                         self.cargarLista();
                     } else {
                         console.error('Error al cargar permisos:', response.error);
@@ -125,7 +123,6 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
         aplicarFiltrosPorRol: function () {
             if (!this.permisos) return;
             
-            // Resetear filtros
             this.filtros = {
                 cla: null,
                 oficina: null,
@@ -133,30 +130,22 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                 status: null
             };
             
-            // Aplicar filtros según el rol
             if (this.permisos.esAsesor) {
-                // Asesor: solo sus propios AVEs
                 this.filtros.asesor = this.currentUserId;
                 console.log('Asesor - Filtrando por:', this.filtros.asesor);
-                
             } else if (this.permisos.tieneRolesGestion && !this.permisos.esCasaNacional) {
-                // Director/Gerente: AVEs de su oficina
                 if (this.permisos.oficinaUsuario) {
                     this.filtros.oficina = this.permisos.oficinaUsuario;
                     console.log('Director/Gerente - Filtrando por oficina:', this.filtros.oficina);
                 }
-                
             } else if (this.permisos.esCasaNacional) {
-                // Casa Nacional/Admin: ver todos (sin filtros automáticos)
                 console.log('Casa Nacional - Sin filtros automáticos');
             }
             
-            // Actualizar los selects con los valores filtrados
             this.actualizarSelectsSegunFiltros();
         },
 
         actualizarSelectsSegunFiltros: function () {
-            // Si es asesor, deshabilitar los selects de CLA y oficina
             if (this.permisos && this.permisos.esAsesor) {
                 this.$el.find('#filtro-cla').prop('disabled', true);
                 this.$el.find('#filtro-oficina').prop('disabled', true);
@@ -164,7 +153,6 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                 this.$el.find('#filtro-asesor').val(this.currentUserId);
             }
             
-            // Si es director/gerente, deshabilitar CLA y mostrar su oficina
             if (this.permisos && this.permisos.tieneRolesGestion && !this.permisos.esCasaNacional) {
                 this.$el.find('#filtro-cla').prop('disabled', true);
                 this.$el.find('#filtro-oficina').prop('disabled', true);
@@ -175,7 +163,6 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                 this.$el.find('#filtro-asesor').prop('disabled', false);
             }
             
-            // Si es casa nacional, todos los filtros están habilitados
             if (this.permisos && this.permisos.esCasaNacional) {
                 this.$el.find('#filtro-cla').prop('disabled', false);
                 this.$el.find('#filtro-oficina').prop('disabled', false);
@@ -321,14 +308,12 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
             
             console.log('Filtros aplicados:', this.filtros);
             
-            // Si es Asesor, forzar su ID
             if (this.permisos && this.permisos.esAsesor) {
                 this.filtros.asesor = this.currentUserId;
                 this.filtros.cla = null;
                 this.filtros.oficina = null;
             }
             
-            // Si tiene roles de gestión (Director/Gerente), forzar su oficina
             if (this.permisos && this.permisos.tieneRolesGestion && !this.permisos.esCasaNacional) {
                 if (this.permisos.oficinaUsuario) {
                     this.filtros.oficina = this.permisos.oficinaUsuario;
@@ -341,13 +326,9 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
         },
 
         limpiarFiltros: function () {
-            // Limpiar selects visualmente
             this.$el.find('#filtro-status').val('');
-            
-            // Aplicar filtros por rol nuevamente (no limpiar completamente)
             this.aplicarFiltrosPorRol();
             
-            // Si es casa nacional, además limpiar los selects de CLA y oficina
             if (this.permisos && this.permisos.esCasaNacional) {
                 this.$el.find('#filtro-cla').val('');
                 this.$el.find('#filtro-oficina').empty().append('<option value="">Todas las oficinas</option>').prop('disabled', false);
@@ -412,8 +393,6 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
 
         renderizarTabla: function () {
             console.log('renderizarTabla() - Datos length:', this.datos.length);
-            console.log('permisos:', this.permisos);
-            console.log('puedeAprobarOInvalidar:', this.puedeAprobarOInvalidar());
             
             var self = this;
             var $tbody = this.$el.find('#ave-list-tbody');
@@ -441,16 +420,17 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                 var status = item.status || 'elaboracion';
                 var statusInf = self.statusMap[status] || { texto: status, clase: '' };
                 
-                var actionButtons = '';
+                // Botones en formato vertical (uno debajo del otro)
+                var actionButtons = '<div style="display:flex; flex-direction:column; gap:4px; align-items:center;">';
                 
                 // Botón Ver - visible para todos
-                actionButtons += '<button class="ave-btn ave-btn-secondary ave-btn-sm" data-action="ver-ave" data-id="' + item.id + '" title="Ver">';
+                actionButtons += '<button class="ave-btn ave-btn-secondary ave-btn-sm" data-action="ver-ave" data-id="' + item.id + '" title="Ver" style="width:100%; min-width:80px;">';
                 actionButtons += '<i class="fas fa-eye"></i> Ver';
                 actionButtons += '</button>';
                 
                 if (status === 'impresion') {
-                    // Botón Imprimir - visible para TODOS (incluyendo asesores)
-                    actionButtons += '<button class="ave-btn ave-btn-primary ave-btn-sm" data-action="cambiar-status" data-id="' + item.id + '" data-status="' + status + '" data-accion="imprimir" style="margin-left: 5px;" title="Imprimir">';
+                    // Botón Imprimir - visible para TODOS
+                    actionButtons += '<button class="ave-btn ave-btn-primary ave-btn-sm" data-action="cambiar-status" data-id="' + item.id + '" data-status="' + status + '" data-accion="imprimir" style="width:100%; min-width:80px;" title="Imprimir">';
                     actionButtons += '<i class="fas fa-print"></i> Imprimir';
                     actionButtons += '</button>';
                 }
@@ -458,15 +438,17 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                 // Botones de Aprobar e Invalidar - SOLO para usuarios con permisos de gestión
                 if (puedeAprobar) {
                     if (status === 'elaboracion') {
-                        actionButtons += '<button class="ave-btn ave-btn-success ave-btn-sm" data-action="cambiar-status" data-id="' + item.id + '" data-status="' + status + '" data-accion="aprobar" style="margin-left: 5px;" title="Aprobar">';
+                        actionButtons += '<button class="ave-btn ave-btn-success ave-btn-sm" data-action="cambiar-status" data-id="' + item.id + '" data-status="' + status + '" data-accion="aprobar" style="width:100%; min-width:80px;" title="Aprobar">';
                         actionButtons += '<i class="fas fa-check"></i> Aprobar';
                         actionButtons += '</button>';
                     } else if (status === 'impresion') {
-                        actionButtons += '<button class="ave-btn ave-btn-warning ave-btn-sm" data-action="cambiar-status" data-id="' + item.id + '" data-status="' + status + '" data-accion="invalidar" style="margin-left: 5px;" title="Invalidar">';
+                        actionButtons += '<button class="ave-btn ave-btn-warning ave-btn-sm" data-action="cambiar-status" data-id="' + item.id + '" data-status="' + status + '" data-accion="invalidar" style="width:100%; min-width:80px;" title="Invalidar">';
                         actionButtons += '<i class="fas fa-undo-alt"></i> Invalidar';
                         actionButtons += '</button>';
                     }
                 }
+                
+                actionButtons += '</div>';
 
                 var ubicacionInmueble = self.formatearUbicacion(item);
 
@@ -481,7 +463,7 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                 html += '<td style="text-align:center;">';
                 html += '<span class="ave-leyenda-badge ' + statusInf.clase + '">' + statusInf.texto + '</span>';
                 html += '</td>';
-                html += '<td style="text-align:center; white-space: nowrap;">';
+                html += '<td style="text-align:center; min-width:90px;">';
                 html += actionButtons;
                 html += '</td>';
                 html += '</tr>';
@@ -503,6 +485,8 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
         },
 
         renderizarPaginacion: function () {
+            console.log('renderizarPaginacion() - Total páginas:', this.totalPaginas, 'Página actual:', this.pagina);
+            
             if (this.totalPaginas <= 1) {
                 this.$el.find('#ave-paginacion').hide();
                 return;
@@ -513,7 +497,7 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
             this.$el.find('#ave-page-info').text('Mostrando ' + inicio + '-' + fin + ' de ' + this.totalRegistros);
 
             var html = '';
-            html += '<button class="ave-pag-btn ' + (this.pagina === 1 ? 'disabled' : '') + '" data-pagina="' + (this.pagina - 1) + '"><i class="fas fa-chevron-left"></i></button>';
+            html += '<button class="ave-pag-btn ' + (this.pagina === 1 ? 'disabled' : '') + '" data-pagina="' + (this.pagina - 1) + '" ' + (this.pagina === 1 ? 'disabled' : '') + '><i class="fas fa-chevron-left"></i></button>';
             var ini = Math.max(1, this.pagina - 2);
             var fin2 = Math.min(this.totalPaginas, this.pagina + 2);
             if (ini > 1) { html += '<button class="ave-pag-btn" data-pagina="1">1</button>'; if (ini > 2) html += '<span style="padding:0 4px;">…</span>'; }
@@ -521,7 +505,7 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                 html += '<button class="ave-pag-btn ' + (i === this.pagina ? 'active' : '') + '" data-pagina="' + i + '">' + i + '</button>';
             }
             if (fin2 < this.totalPaginas) { if (fin2 < this.totalPaginas - 1) html += '<span style="padding:0 4px;">…</span>'; html += '<button class="ave-pag-btn" data-pagina="' + this.totalPaginas + '">' + this.totalPaginas + '</button>'; }
-            html += '<button class="ave-pag-btn ' + (this.pagina === this.totalPaginas ? 'disabled' : '') + '" data-pagina="' + (this.pagina + 1) + '"><i class="fas fa-chevron-right"></i></button>';
+            html += '<button class="ave-pag-btn ' + (this.pagina === this.totalPaginas ? 'disabled' : '') + '" data-pagina="' + (this.pagina + 1) + '" ' + (this.pagina === this.totalPaginas ? 'disabled' : '') + '><i class="fas fa-chevron-right"></i></button>';
 
             this.$el.find('#ave-pag-controles').html(html);
         },
@@ -590,7 +574,6 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
             
             console.log('crearNuevo() - Usuario actual:', userId);
             
-            // Método 1: Usar Espo.Ajax directamente (ya funcionaba antes)
             Espo.Ajax.postRequest('AvePrincipal', { 
                 name: 'Nuevo AVE',
                 assignedUserId: userId

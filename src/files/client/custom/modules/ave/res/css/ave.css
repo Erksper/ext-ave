@@ -1010,3 +1010,24 @@
     color: white;
     transform: translateY(-1px);
 }
+
+/* ──────────────────────────────────────────────────────────────
+   Lista - Estilos para botones verticales
+   ────────────────────────────────────────────────────────────── */
+.ave-table td:last-child {
+    min-width: 100px;
+    max-width: 120px;
+}
+
+/* Para pantallas pequeñas, asegurar que la tabla se vea bien */
+@media (max-width: 992px) {
+    .ave-table td:last-child {
+        min-width: 90px;
+        max-width: 100px;
+    }
+    .ave-table .ave-btn-sm {
+        font-size: 10px;
+        padding: 4px 8px;
+        min-width: 70px !important;
+    }
+}

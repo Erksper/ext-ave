@@ -56,9 +56,8 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
             if (teamId) {
                 params.teamId = teamId;
             }
-            if (subtipo) {
-                params.descripcion = subtipo;
-            }
+            // Si no hay subtipo, enviar cadena vacía para que el backend devuelva solo generales
+            params.descripcion = subtipo || '';
         } else {
             // Para otros tipos, enviar teamId para filtro
             if (teamId) {
@@ -122,7 +121,17 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
                     return item.descripcion === subtipoActual;
                 });
             } else {
-                this.items = [];
+                // Si no hay subtipo, mostrar solo factores generales
+                this.items = (items || []).map(function(item) {
+                    return {
+                        id: item.factorCatalogoId || item.id,
+                        name: item.factorName || item.name,
+                        tipo: item.tipo || 'positivo',
+                        descripcion: item.descripcion || ''
+                    };
+                }).filter(function(item) {
+                    return !item.descripcion || item.descripcion === '';
+                });
             }
         } else {
             this.items = items || [];
@@ -142,27 +151,26 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
         if (this.tipo !== 'factor') return;
         
         var subtipo = this.getSubtipoInmueble();
-        if (!subtipo) {
-            this.items = [];
-            this.catalogo = [];
-            this.renderizar();
-            this.poblarSelect();
-            this.actualizarTotalImpacto();
-            return;
-        }
         
-        // Recargar catálogo con el nuevo subtipo
+        // Si no hay subtipo, enviar cadena vacía
         Espo.Ajax.getRequest('AvePrincipal/action/getFactoresPorTipo', { 
             tipo: this.tipo, 
             teamId: this.view.teamId,
-            descripcion: subtipo
+            descripcion: subtipo || ''
         }).then(function (response) {
             if (response.success && response.data) {
                 self.catalogo = response.data;
-                // Filtrar items actuales por el nuevo subtipo
-                self.items = self.items.filter(function(item) {
-                    return item.descripcion === subtipo;
-                });
+                // Filtrar items actuales según el subtipo
+                if (subtipo) {
+                    self.items = self.items.filter(function(item) {
+                        return item.descripcion === subtipo;
+                    });
+                } else {
+                    // Si no hay subtipo, filtrar items generales
+                    self.items = self.items.filter(function(item) {
+                        return !item.descripcion || item.descripcion === '';
+                    });
+                }
                 self.renderizar();
                 self.poblarSelect();
                 self.actualizarTotalImpacto();

@@ -655,7 +655,7 @@ class AvePrincipal extends RecordService
         $html .= '<tr><td><strong>Habitaciones / Baños</strong></td><td>' . ($inmueble['numHabitaciones'] ?? '-') . ' / ' . ($inmueble['numBanos'] ?? '-') . '</td></tr>';
         $html .= '<tr><td><strong>Estacionamiento</strong></td><td>' . ($inmueble['puestoEstacionamiento'] ?? '-') . '</td></tr>';
         if (!empty($inmueble['descripcion'])) {
-            $html .= '<tr><td><strong>Descripción</strong></td><td colspan="2">' . $esc($inmueble['descripcion']) . 'NonNull';
+            $html .= '<tr><td><strong>Descripción</strong></td><td colspan="2">' . $esc($inmueble['descripcion']) . '</td></tr>';
         }
         $html .= '</table>';
         $html .= '</div>';
@@ -694,7 +694,7 @@ class AvePrincipal extends RecordService
                 $enlace = $r['enlace'] ?? ''; 
                 $h .= '<td style="padding: 8px; border: 1px solid #ddd;">' . ($enlace ? '<a href="' . $esc($enlace) . '" target="_blank" rel="noopener">' . $esc($enlace) . '</a>' : '-') . '</td>';
             }
-            $h .= '<tr>';
+            $h .= '</tr>';
             
             // Fila de fotos
             $h .= '<tr>';
@@ -1415,8 +1415,14 @@ class AvePrincipal extends RecordService
         }
         
         // Para factores, filtrar por descripcion (que guarda el subtipo)
-        if ($tipo === 'factor' && $descripcion) {
-            $where[] = ['OR' => [['descripcion' => null], ['descripcion' => ''], ['descripcion' => $descripcion]]];
+        if ($tipo === 'factor') {
+            if ($descripcion && $descripcion !== '') {
+                // Si HAY subtipo: mostrar SOLO factores de ese subtipo
+                $where['descripcion'] = $descripcion;
+            } else {
+                // Si NO HAY subtipo: mostrar SOLO factores generales (sin descripcion)
+                $where[] = ['OR' => [['descripcion' => null], ['descripcion' => '']]];
+            }
         }
         
         $items = $repo->where($where)->order('name', 'ASC')->find();
