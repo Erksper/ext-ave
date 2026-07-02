@@ -1031,3 +1031,16 @@
         min-width: 70px !important;
     }
 }
+
+.ave-tab-btn.ave-tab-locked {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+    position: relative;
+}
+
+.ave-tab-btn.ave-tab-locked::after {
+    content: ' 🔒';
+    font-size: 10px;
+    vertical-align: middle;
+}

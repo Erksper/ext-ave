@@ -51,12 +51,10 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                 var accion = $(e.currentTarget).data('accion');
                 this.cambiarStatus(id, statusActual, accion);
             },
-            // CORREGIDO: Cambiar de '.pag-btn' a '.ave-pag-btn'
             'click .ave-pag-btn': function (e) {
                 var pagina = $(e.currentTarget).data('pagina');
                 if (pagina && pagina !== this.pagina) {
                     this.pagina = parseInt(pagina);
-                    console.log('Cambiando a página:', this.pagina);
                     this.cargarLista();
                 }
             },
@@ -70,7 +68,6 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
 
         setup: function () {
             Dep.prototype.setup.call(this);
-            console.log('list.setup() - Inicializando vista de lista');
             var user = this.getUser();
             this.currentUserId = user.get('id');
             this.currentUserName = user.get('name');
@@ -110,12 +107,10 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                         self.aplicarFiltrosPorRol();
                         self.cargarLista();
                     } else {
-                        console.error('Error al cargar permisos:', response.error);
                         self.cargarLista();
                     }
                 })
-                .catch(function (error) {
-                    console.error('Error en petición de permisos:', error);
+                .catch(function () {
                     self.cargarLista();
                 });
         },
@@ -132,14 +127,10 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
             
             if (this.permisos.esAsesor) {
                 this.filtros.asesor = this.currentUserId;
-                console.log('Asesor - Filtrando por:', this.filtros.asesor);
             } else if (this.permisos.tieneRolesGestion && !this.permisos.esCasaNacional) {
                 if (this.permisos.oficinaUsuario) {
                     this.filtros.oficina = this.permisos.oficinaUsuario;
-                    console.log('Director/Gerente - Filtrando por oficina:', this.filtros.oficina);
                 }
-            } else if (this.permisos.esCasaNacional) {
-                console.log('Casa Nacional - Sin filtros automáticos');
             }
             
             this.actualizarSelectsSegunFiltros();
@@ -306,8 +297,6 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                 status: (statusVal && statusVal !== '') ? statusVal : null
             };
             
-            console.log('Filtros aplicados:', this.filtros);
-            
             if (this.permisos && this.permisos.esAsesor) {
                 this.filtros.asesor = this.currentUserId;
                 this.filtros.cla = null;
@@ -345,8 +334,6 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
 
         cargarLista: function () {
             var self = this;
-            console.log('cargarLista() - Página:', this.pagina, 'Por página:', this.porPagina);
-            console.log('Filtros actuales:', this.filtros);
             
             this.$el.find('#ave-list-loading').show();
             this.$el.find('#ave-list-content').hide();
@@ -361,12 +348,8 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                 userId: this.currentUserId
             };
 
-            console.log('Parámetros enviados al servidor:', params);
-
             Espo.Ajax.getRequest('AvePrincipal/action/getLista', params)
                 .then(function (response) {
-                    console.log('Respuesta del servidor:', response);
-                    
                     self.$el.find('#ave-list-loading').hide();
                     self.$el.find('#ave-list-content').show();
 
@@ -378,13 +361,11 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                         self.renderizarTabla();
                         self.renderizarPaginacion();
                     } else {
-                        console.error('Error en respuesta:', response.error);
                         Espo.Ui.error(response.error || 'Error al cargar la lista');
                         self.$el.find('#ave-list-content').show();
                     }
                 })
-                .catch(function (error) {
-                    console.error('Error en petición AJAX:', error);
+                .catch(function () {
                     self.$el.find('#ave-list-loading').hide();
                     self.$el.find('#ave-list-content').show();
                     Espo.Ui.error('Error al cargar los avalúos');
@@ -392,8 +373,6 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
         },
 
         renderizarTabla: function () {
-            console.log('renderizarTabla() - Datos length:', this.datos.length);
-            
             var self = this;
             var $tbody = this.$el.find('#ave-list-tbody');
             var $noData = this.$el.find('#ave-no-data');
@@ -485,8 +464,6 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
         },
 
         renderizarPaginacion: function () {
-            console.log('renderizarPaginacion() - Total páginas:', this.totalPaginas, 'Página actual:', this.pagina);
-            
             if (this.totalPaginas <= 1) {
                 this.$el.find('#ave-paginacion').hide();
                 return;
@@ -572,14 +549,11 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
             var self = this;
             var userId = this.currentUserId;
             
-            console.log('crearNuevo() - Usuario actual:', userId);
-            
             Espo.Ajax.postRequest('AvePrincipal', { 
                 name: 'Nuevo AVE',
                 assignedUserId: userId
             })
             .then(function (response) {
-                console.log('Respuesta creación:', response);
                 if (response && response.id) {
                     self.getRouter().navigate('#AvePrincipal/view/' + response.id, { trigger: true });
                 } else if (response && response.success === false) {
@@ -588,18 +562,8 @@ define('ave:views/ave-principal/list', ['view'], function (Dep) {
                     Espo.Ui.error('No se pudo crear el avalúo: respuesta inválida');
                 }
             })
-            .catch(function (error) {
-                console.error('Error en creación:', error);
-                var errorMsg = '';
-                try {
-                    if (error.responseText) {
-                        var parsed = JSON.parse(error.responseText);
-                        errorMsg = parsed.error || parsed.message || 'Error desconocido';
-                    }
-                } catch(e) {
-                    errorMsg = error.statusText || 'Error de conexión';
-                }
-                Espo.Ui.error('Error al crear el avalúo: ' + errorMsg);
+            .catch(function () {
+                Espo.Ui.error('Error al crear el avalúo');
             });
         },
 

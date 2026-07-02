@@ -230,6 +230,7 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
 
         this.view.$el.find('#inmueble-seleccionado').show();
         this.view.$el.find('#inmueble-vacio').hide();
+        if (this.view.verificarInmueble) this.view.verificarInmueble();
     };
 
     InmuebleManager.prototype.limpiarSeleccion = function () {
@@ -238,6 +239,7 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
         this.view.$el.find('#inmueble-seleccionado').hide();
         this.view.$el.find('#inmueble-vacio').show();
         this.view.$el.find('#inmueble-search-input').val('').focus();
+        if (this.view.verificarInmueble) this.view.verificarInmueble();
     };
 
     // Formateadores para mostrar textos amigables
@@ -390,20 +392,70 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
     // ─────────────────────────────────────────────────────────────
     InmuebleManager.prototype.guardarDesdeModal = function () {
         var self = this;
-        var nombrePropietario = this.view.$el.find('#inm-m-nombrePropietario').val().trim();
-        if (!nombrePropietario) {
-            Espo.Ui.warning('El nombre del propietario es requerido');
-            this.view.$el.find('#inm-m-nombrePropietario').focus();
-            return;
+
+        // ── Campos requeridos ──────────────────────────────────────────
+        var requeridos = [
+            { id: '#inm-m-nombrePropietario', label: 'Nombre del propietario',    tipo: 'text' },
+            { id: '#inm-m-tipoPropiedad',     label: 'Tipo de propiedad',         tipo: 'select' },
+            { id: '#inm-m-subtipoPropiedad',  label: 'Subtipo de propiedad',      tipo: 'select' },
+            { id: '#inm-m-estado',            label: 'Estado',                    tipo: 'text' },
+            { id: '#inm-m-municipio',         label: 'Municipio',                 tipo: 'text' },
+            { id: '#inm-m-ciudad',            label: 'Ciudad',                    tipo: 'text' },
+            { id: '#inm-m-urbanizacion',      label: 'Urbanización / Sector',     tipo: 'text' },
+            { id: '#inm-m-avenidaCalle',      label: 'Avenida / Calle',           tipo: 'text' },
+            { id: '#inm-m-edificioCasa',      label: 'Edificio / C.C. / Casa',    tipo: 'text' },
+            { id: '#inm-m-areaConstruida',    label: 'Área Construida',           tipo: 'number' },
+            { id: '#inm-m-antiguedad',        label: 'Antigüedad',                tipo: 'number' },
+        ];
+
+        for (var i = 0; i < requeridos.length; i++) {
+            var campo = requeridos[i];
+            var $el = this.view.$el.find(campo.id);
+            var valor = campo.tipo === 'number'
+                ? parseFloat($el.val())
+                : $el.val().trim();
+
+            var vacio = campo.tipo === 'number'
+                ? (isNaN(valor) || valor < 0)
+                : !valor;
+
+            if (vacio) {
+                Espo.Ui.warning(campo.label + ' es requerido');
+                $el.focus();
+                return;
+            }
         }
 
+        // ── Validaciones numéricas (deben ser >= 0) ────────────────────
+        var numericos = [
+            { id: '#inm-m-areaConstruida',        label: 'Área Construida',        minVal: 0.01 },
+            { id: '#inm-m-areaTerreno',           label: 'Área de Terreno',        minVal: 0, opcional: true },
+            { id: '#inm-m-antiguedad',            label: 'Antigüedad',             minVal: 0 },
+            { id: '#inm-m-numHabitaciones',       label: 'Habitaciones',           minVal: 0, opcional: true },
+            { id: '#inm-m-numBanos',              label: 'Baños',                  minVal: 0, opcional: true },
+            { id: '#inm-m-puestoEstacionamiento', label: 'Estacionamiento',        minVal: 0, opcional: true },
+        ];
+
+        for (var j = 0; j < numericos.length; j++) {
+            var num = numericos[j];
+            var rawVal = this.view.$el.find(num.id).val();
+            if (num.opcional && rawVal === '') continue; // campo vacío y es opcional: ok
+            var numVal = parseFloat(rawVal);
+            if (isNaN(numVal) || numVal < num.minVal) {
+                Espo.Ui.warning(num.label + ': debe ser un número válido' + (num.minVal > 0 ? ' mayor a 0' : ' mayor o igual a 0'));
+                this.view.$el.find(num.id).focus();
+                return;
+            }
+        }
+
+        // ── Guardar ───────────────────────────────────────────────────
         var $btn = this.view.$el.find('#btn-guardar-inmueble');
         var orig = $btn.html();
         $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Guardando...');
 
         var data = {
             id:                    this.view.$el.find('#inm-m-id').val() || null,
-            nombrePropietario:     nombrePropietario,
+            nombrePropietario:     this.view.$el.find('#inm-m-nombrePropietario').val().trim(),
             tipoPropiedad:         this.view.$el.find('#inm-m-tipoPropiedad').val(),
             subtipoPropiedad:      this.view.$el.find('#inm-m-subtipoPropiedad').val(),
             estado:                this.view.$el.find('#inm-m-estado').val(),

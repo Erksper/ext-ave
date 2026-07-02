@@ -9,9 +9,6 @@ define('ave:views/ave-principal/modules/precio', [], function () {
     };
 
     PrecioManager.prototype.poblar = function (ave) {
-        console.log('=== PRECIO MANAGER: poblar ===');
-        console.log('Datos recibidos del AVE:', ave);
-        
         this.actualizarDatosBase();
         
         this.view.$el.find('#valorMax').val(ave.valorMax || '');
@@ -43,10 +40,6 @@ define('ave:views/ave-principal/modules/precio', [], function () {
         if (this.view.inmuebleManager && this.view.inmuebleManager.inmuebleActual) {
             this.areaInmueble = parseFloat(this.view.inmuebleManager.inmuebleActual.areaConstruida) || 0;
         }
-        
-        console.log('Datos base actualizados - Área:', this.areaInmueble);
-        console.log('Referencias Promoción:', this.referenciasPromocion.length);
-        console.log('Referencias Vendidos:', this.referenciasVendidos.length);
     };
 
     PrecioManager.prototype.calcularPrecios = function () {
@@ -110,18 +103,6 @@ define('ave:views/ave-principal/modules/precio', [], function () {
         // Aplicar ajuste para el precio sugerido
         var ajuste = parseFloat(this.view.$el.find('#ajustePrecio').val()) || 0;
         
-        console.log('Cálculo realizado:');
-        console.log('  precioM2Ofertas:', precioM2Ofertas);
-        console.log('  precioM2Ventas:', precioM2Ventas);
-        console.log('  pesoOfertas:', pesoOfertas);
-        console.log('  valorMaxM2:', valorMaxM2);
-        console.log('  valorMinM2:', valorMinM2);
-        console.log('  precioM2Ponderado:', precioM2Ponderado);
-        console.log('  área inmueble:', this.areaInmueble);
-        console.log('  precioMaximo:', precioMaximo);
-        console.log('  precioMinimo:', precioMinimo);
-        console.log('  precioVentaBase:', precioVentaBase);
-        
         // Actualizar inputs
         this.view.$el.find('#valorMax').val(valorMaxM2.toFixed(2));
         this.view.$el.find('#precioMax').val(Math.round(precioMaximo));
@@ -140,11 +121,12 @@ define('ave:views/ave-principal/modules/precio', [], function () {
     PrecioManager.prototype.initEventos = function () {
         var self = this;
 
-        this.view.$el.find('#pesoOfertas').off('input.precio').on('input.precio', function () {
-            var val = parseInt($(this).val()) || 0;
-            val = Math.min(100, Math.max(0, val));
+        this.view.$el.find('#pesoOfertas').off('input.precio change.precio').on('input.precio change.precio', function () {
+            var val = parseInt($(this).val());
+            if (isNaN(val) || val < 1) val = 1;
+            if (val > 99) val = 99;
             $(this).val(val);
-            console.log('Peso Ofertas cambiado a:', val);
+            self.view.$el.find('#pesoVentas').val(100 - val);
             self.calcularPrecios();
         });
 
@@ -152,7 +134,6 @@ define('ave:views/ave-principal/modules/precio', [], function () {
             var val = parseInt($(this).val()) || 0;
             val = Math.min(100, Math.max(-100, val));
             $(this).val(val);
-            console.log('Ajuste Precio cambiado a:', val);
             
             var precioBase = parseFloat(self.view.$el.find('#precioOriginal').val()) || 0;
             self.actualizarRango(val, precioBase);
@@ -162,8 +143,6 @@ define('ave:views/ave-principal/modules/precio', [], function () {
     PrecioManager.prototype.actualizarRango = function (ajuste, precioBase) {
         ajuste = parseFloat(ajuste) || 0;
         precioBase = parseFloat(precioBase) || 0;
-
-        console.log('actualizarRango - ajuste:', ajuste, 'precioBase:', precioBase);
 
         var fmt = function (n) {
             return n.toLocaleString('es-VE', {
@@ -176,11 +155,9 @@ define('ave:views/ave-principal/modules/precio', [], function () {
             var min = Math.round(precioBase * (1 - ajuste / 100));
             var max = Math.round(precioBase * (1 + ajuste / 100));
             
-            console.log('Rango calculado - min:', min, 'max:', max);
             this.view.$el.find('#rangoPrecioMinDisplay').text('$ ' + fmt(min));
             this.view.$el.find('#rangoPrecioMaxDisplay').text('$ ' + fmt(max));
         } else {
-            console.warn('precioBase es 0 o inválido');
             this.view.$el.find('#rangoPrecioMinDisplay').text('$ 0');
             this.view.$el.find('#rangoPrecioMaxDisplay').text('$ 0');
         }

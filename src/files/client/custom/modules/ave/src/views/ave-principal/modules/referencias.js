@@ -105,13 +105,65 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
     };
 
     // Validación
-    ReferenciasManager.prototype.validarArea = function () {
-        var area = parseFloat(this.view.$el.find('#ref-areaConstruida').val());
-        if (isNaN(area) || area <= 0) {
-            Espo.Ui.warning('El área construida debe ser mayor a 0');
-            this.view.$el.find('#ref-areaConstruida').focus();
-            return false;
+    ReferenciasManager.prototype.validarCompleto = function () {
+        // ── Campos requeridos ──────────────────────────────────────────
+        var requeridos = [
+            { id: '#ref-tipoPropiedad',    label: 'Tipo de propiedad',   tipo: 'select' },
+            { id: '#ref-subtipoPropiedad', label: 'Subtipo de propiedad', tipo: 'select' },
+            { id: '#ref-valorReferencial', label: 'Valor referencial',    tipo: 'number' },
+            { id: '#ref-areaConstruida',   label: 'Área Construida',      tipo: 'number' },
+            { id: '#ref-antiguedad',       label: 'Antigüedad',           tipo: 'number' },
+        ];
+
+        for (var i = 0; i < requeridos.length; i++) {
+            var campo = requeridos[i];
+            var $el = this.view.$el.find(campo.id);
+            var valor = campo.tipo === 'number' ? parseFloat($el.val()) : $el.val().trim();
+            var vacio = campo.tipo === 'number' ? (isNaN(valor) || valor < 0) : !valor;
+            if (vacio) {
+                Espo.Ui.warning(campo.label + ' es requerido');
+                $el.focus();
+                return false;
+            }
         }
+
+        // ── Área Terreno: requerida si el tipo incluye terreno ─────────
+        var tipo = this.view.$el.find('#ref-tipoPropiedad').val();
+        var subtipo = this.view.$el.find('#ref-subtipoPropiedad').val();
+        var esTerreno = tipo === 'Terreno' || subtipo === 'Parcela';
+        if (esTerreno) {
+            var areaTerreno = parseFloat(this.view.$el.find('#ref-areaTerreno').val());
+            if (isNaN(areaTerreno) || areaTerreno <= 0) {
+                Espo.Ui.warning('Área de Terreno es requerida para este tipo de propiedad');
+                this.view.$el.find('#ref-areaTerreno').focus();
+                return false;
+            }
+        }
+
+        // ── Validaciones numéricas opcionales ─────────────────────────
+        var numericos = [
+            { id: '#ref-areaTerreno',      label: 'Área Terreno',       minVal: 0 },
+            { id: '#ref-areaConstruida',   label: 'Área Construida',    minVal: 0.01 },
+            { id: '#ref-antiguedad',       label: 'Antigüedad',         minVal: 0 },
+            { id: '#ref-habitaciones',     label: 'Habitaciones',       minVal: 0 },
+            { id: '#ref-banos',            label: 'Baños',              minVal: 0 },
+            { id: '#ref-estacionamiento',  label: 'Estacionamientos',   minVal: 0 },
+            { id: '#ref-valorm2',          label: 'Valor por m²',       minVal: 0 },
+            { id: '#ref-valorReferencial', label: 'Valor referencial',  minVal: 0.01 },
+        ];
+
+        for (var j = 0; j < numericos.length; j++) {
+            var num = numericos[j];
+            var rawVal = this.view.$el.find(num.id).val();
+            if (rawVal === '') continue; // vacío es ok si no es requerido
+            var numVal = parseFloat(rawVal);
+            if (isNaN(numVal) || numVal < num.minVal) {
+                Espo.Ui.warning(num.label + ': valor numérico inválido');
+                this.view.$el.find(num.id).focus();
+                return false;
+            }
+        }
+
         return true;
     };
 
@@ -258,7 +310,7 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
 
     // Guardar referencia
     ReferenciasManager.prototype.guardarDesdeModal = function () {
-        if (!this.validarArea()) return;
+        if (!this.validarCompleto()) return;
 
         var tipo = this.view.$el.find('#ref-modal-tipo').val();
         var idx = this.view.$el.find('#ref-modal-idx').val();

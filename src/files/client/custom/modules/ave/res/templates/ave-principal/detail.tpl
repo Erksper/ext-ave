@@ -106,7 +106,7 @@
                             <div class="col-md-6">
                                 <div class="ave-form-group">
                                     <label class="ave-form-label">Teléfono</label>
-                                    <input type="text" id="telefonoCliente" class="ave-form-control">
+                                    <input type="tel" id="telefonoCliente" class="ave-form-control" placeholder="Solo números">
                                 </div>
                             </div>
                         </div>
@@ -415,7 +415,7 @@
                                 <div class="ave-form-group">
                                     <label class="ave-form-label">Peso Ofertas (%)</label>
                                     <input type="number" id="pesoOfertas" class="ave-form-control"
-                                        step="1" min="0" max="100" value="50">
+                                        step="1" min="1" max="99" value="50">
                                 </div>
                             </div>
                             <div class="col-md-6">

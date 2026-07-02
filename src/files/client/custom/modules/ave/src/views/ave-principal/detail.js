@@ -93,8 +93,6 @@ define('ave:views/ave-principal/detail', [
                 this.factoresManager.quitar($(e.currentTarget).data('idx'));
             },
             
-            // Pestaña 8 — Precio Sugerido
-            
             // Pestaña 9 — Decisiones
             'click [data-action="agregar-decision"]': function () {
                 this.decisionesManager.agregarDesdeSelect();
@@ -139,49 +137,14 @@ define('ave:views/ave-principal/detail', [
             },
         },
 
-        debugPrecios: function () {
-            console.log('=== DEBUG PRECIOS ===');
-            console.log('AVE ID:', this.aveId);
-            console.log('Referencias promocion:', this.referenciasManager.items.promocion);
-            console.log('Referencias vendidos:', this.referenciasManager.items.vendido);
-            console.log('Inmueble actual:', this.inmuebleManager.inmuebleActual);
-            console.log('Peso Ofertas:', this.$el.find('#pesoOfertas').val());
-            console.log('Peso Ventas:', this.$el.find('#pesoVentas').val());
-            console.log('Ajuste:', this.$el.find('#ajustePrecio').val());
-            
-            var self = this;
-            Espo.Ajax.postRequest('AvePrincipal/action/recalcularPrecios', {
-                aveId: this.aveId,
-                pesoOfertas: parseFloat(this.$el.find('#pesoOfertas').val()) || 50,
-                ajustePrecio: parseFloat(this.$el.find('#ajustePrecio').val()) || 0
-            })
-            .then(function (response) {
-                console.log('Respuesta del servidor:', response);
-                if (response.success) {
-                    console.log('Valores calculados por el servidor:');
-                    console.log('  valorMax:', response.data.valorMax);
-                    console.log('  precioMax:', response.data.precioMax);
-                    console.log('  valorPromedio:', response.data.valorPromedio);
-                    console.log('  valorMin:', response.data.valorMin);
-                    console.log('  precioMin:', response.data.precioMin);
-                    console.log('  precioOriginal:', response.data.precioOriginal);
-                    console.log('  precioSugerido:', response.data.precioSugerido);
-                    console.log('  rangoMin:', response.data.rangoPrecioMin);
-                    console.log('  rangoMax:', response.data.rangoPrecioMax);
-                }
-            });
-        },
-
         // ─────────────────────────────────────────────────────────────
         // Setup
         // ─────────────────────────────────────────────────────────────
         setup: function () {
             Dep.prototype.setup.call(this);
-            console.log('detail.setup()');
             
             // Obtener la URL base correcta
             this.baseUrl = window.location.origin + window.location.pathname.replace(/\/client\/.*$/, '');
-            console.log('Base URL:', this.baseUrl);
             
             this.aveId = this.model.id;
             if (!this.aveId) {
@@ -231,21 +194,18 @@ define('ave:views/ave-principal/detail', [
             var assignedUserId = this.aveData ? this.aveData.assignedUserId : null;
             
             if (!assignedUserId) {
-                console.log('No hay assignedUserId, logo no se cargará');
+                if (self.previewManager) {
+                    self.previewManager.generar();
+                }
                 return;
             }
-            
-            console.log('Buscando usuario asignado:', assignedUserId);
             
             // Obtener el usuario asignado
             Espo.Ajax.getRequest('User/' + assignedUserId, {
                 select: 'id,name,cImagenId,teamsIds'
             }).then(function (userData) {
-                console.log('Usuario asignado:', userData);
-                
                 // Obtener los teams del usuario
                 var teamIds = userData.teamsIds || [];
-                console.log('Teams del usuario:', teamIds);
                 
                 // Buscar un team que NO sea CLA (es la oficina)
                 var oficinaId = null;
@@ -257,8 +217,6 @@ define('ave:views/ave-principal/detail', [
                 }
                 
                 if (oficinaId) {
-                    console.log('Oficina encontrada:', oficinaId);
-                    
                     // Buscar el usuario con userName = oficinaId
                     Espo.Ajax.getRequest('User', {
                         where: [{
@@ -272,29 +230,24 @@ define('ave:views/ave-principal/detail', [
                         var users = response.list || [];
                         if (users.length > 0 && users[0].cImagenId) {
                             self.teamLogoUrl = 'api/v1/Attachment/file/' + users[0].cImagenId;
-                            console.log('Logo encontrado:', self.teamLogoUrl);
                         } else {
-                            console.log('No se encontró logo para la oficina:', oficinaId);
                             self.teamLogoUrl = null;
                         }
                         
                         if (self.previewManager) {
                             self.previewManager.generar();
                         }
-                    }).catch(function (error) {
-                        console.error('Error al buscar logo de oficina:', error);
+                    }).catch(function () {
                         if (self.previewManager) {
                             self.previewManager.generar();
                         }
                     });
                 } else {
-                    console.log('No se encontró oficina para el usuario');
                     if (self.previewManager) {
                         self.previewManager.generar();
                     }
                 }
-            }).catch(function (error) {
-                console.error('Error al obtener usuario asignado:', error);
+            }).catch(function () {
                 if (self.previewManager) {
                     self.previewManager.generar();
                 }
@@ -303,96 +256,9 @@ define('ave:views/ave-principal/detail', [
 
         afterRender: function () {
             Dep.prototype.afterRender.call(this);
+            this.tabsManager.inicializar();
             this.cargarDatos();
-            
-            var self = this;
-            window.aveDebug = {
-                getPrecios: function() {
-                    console.log('=== AVE DEBUG PRECIOS ===');
-                    console.log('AVE ID:', self.aveId);
-                    console.log('Referencias promocion:', self.referenciasManager?.items?.promocion || []);
-                    console.log('Referencias vendidos:', self.referenciasManager?.items?.vendido || []);
-                    console.log('Inmueble:', self.inmuebleManager?.inmuebleActual);
-                    console.log('Área inmueble:', self.inmuebleManager?.inmuebleActual?.areaConstruida);
-                    console.log('Peso Ofertas:', self.$el.find('#pesoOfertas').val());
-                    console.log('Peso Ventas:', self.$el.find('#pesoVentas').val());
-                    console.log('Ajuste:', self.$el.find('#ajustePrecio').val());
-                    
-                    var refsPromocion = self.referenciasManager?.items?.promocion || [];
-                    var refsVendidos = self.referenciasManager?.items?.vendido || [];
-                    
-                    console.log('\n--- Detalle Referencias en Promoción ---');
-                    var sumaPreciosProm = 0, sumaAreasProm = 0;
-                    refsPromocion.forEach(function(ref, idx) {
-                        var precio = parseFloat(ref.valorReferencial) || 0;
-                        var area = parseFloat(ref.areaConstruida) || 0;
-                        var precioM2 = area > 0 ? (precio / area).toFixed(2) : 0;
-                        console.log('  Ref ' + (idx+1) + ': Precio=' + precio + ', Área=' + area + ', PrecioM2=' + precioM2);
-                        sumaPreciosProm += precio;
-                        sumaAreasProm += area;
-                    });
-                    var precioM2PromedioProm = sumaAreasProm > 0 ? (sumaPreciosProm / sumaAreasProm).toFixed(2) : 0;
-                    console.log('  SUMAS: Precios=' + sumaPreciosProm + ', Áreas=' + sumaAreasProm + ', PrecioM2 Promedio=' + precioM2PromedioProm);
-                    
-                    console.log('\n--- Detalle Referencias Vendidas ---');
-                    var sumaPreciosVen = 0, sumaAreasVen = 0;
-                    refsVendidos.forEach(function(ref, idx) {
-                        var precio = parseFloat(ref.valorReferencial) || 0;
-                        var area = parseFloat(ref.areaConstruida) || 0;
-                        var precioM2 = area > 0 ? (precio / area).toFixed(2) : 0;
-                        console.log('  Ref ' + (idx+1) + ': Precio=' + precio + ', Área=' + area + ', PrecioM2=' + precioM2);
-                        sumaPreciosVen += precio;
-                        sumaAreasVen += area;
-                    });
-                    var precioM2PromedioVen = sumaAreasVen > 0 ? (sumaPreciosVen / sumaAreasVen).toFixed(2) : 0;
-                    console.log('  SUMAS: Precios=' + sumaPreciosVen + ', Áreas=' + sumaAreasVen + ', PrecioM2 Promedio=' + precioM2PromedioVen);
-                    
-                    console.log('\n--- Cálculo Final ---');
-                    var pesoOfertas = parseFloat(self.$el.find('#pesoOfertas').val()) || 50;
-                    var pesoVentas = 100 - pesoOfertas;
-                    var precioM2Ponderado = (precioM2PromedioProm * pesoOfertas / 100) + (precioM2PromedioVen * pesoVentas / 100);
-                    var areaInmueble = self.inmuebleManager?.inmuebleActual?.areaConstruida || 0;
-                    var precioVenta = precioM2Ponderado * areaInmueble;
-                    console.log('  Precio M2 Ofertas: ' + precioM2PromedioProm);
-                    console.log('  Precio M2 Ventas: ' + precioM2PromedioVen);
-                    console.log('  Pesos: Ofertas=' + pesoOfertas + '%, Ventas=' + pesoVentas + '%');
-                    console.log('  Precio M2 Ponderado: ' + precioM2Ponderado);
-                    console.log('  Área Inmueble: ' + areaInmueble);
-                    console.log('  Precio Venta Calculado: ' + precioVenta.toFixed(2));
-                    
-                    return {
-                        aveId: self.aveId,
-                        referenciasPromocion: refsPromocion,
-                        referenciasVendidos: refsVendidos,
-                        inmueble: self.inmuebleManager?.inmuebleActual,
-                        calculos: {
-                            sumaPreciosProm: sumaPreciosProm,
-                            sumaAreasProm: sumaAreasProm,
-                            precioM2PromedioProm: precioM2PromedioProm,
-                            sumaPreciosVen: sumaPreciosVen,
-                            sumaAreasVen: sumaAreasVen,
-                            precioM2PromedioVen: precioM2PromedioVen,
-                            pesoOfertas: pesoOfertas,
-                            pesoVentas: pesoVentas,
-                            precioM2Ponderado: precioM2Ponderado,
-                            areaInmueble: areaInmueble,
-                            precioVentaCalculado: precioVenta
-                        }
-                    };
-                },
-                recalcular: function() {
-                    console.log('Recalculando precios localmente...');
-                    if (self.precioManager) {
-                        self.precioManager.recargar();
-                    }
-                },
-                actualizarPreview: function() {
-                    if (self.previewManager) {
-                        self.previewManager.generar();
-                    }
-                }
-            };
-            console.log('✅ Debug disponible: escribe aveDebug.getPrecios() en la consola');
+            this._bindTabValidation();
             
             // Interceptar cambios del inmueble
             var originalMostrarInmueble = this.inmuebleManager.mostrarInmueble;
@@ -428,7 +294,6 @@ define('ave:views/ave-principal/detail', [
 
             Espo.Ajax.getRequest('AvePrincipal/action/getOrCreate', { id: this.aveId })
                 .then(function (response) {
-                    console.log('Respuesta completa:', response);
                     if (!response.success) throw new Error(response.error || 'Error al cargar');
                     
                     self.aveData = response.data.ave;
@@ -451,7 +316,6 @@ define('ave:views/ave-principal/detail', [
                     self.planesManager.cargarCatalogo(self.teamId);
                 })
                 .catch(function (err) {
-                    console.error('Error en cargarDatos:', err);
                     self.$el.find('#ave-detail-loading').hide();
                     Espo.Ui.error('Error al cargar el AVE: ' + (err.message || ''));
                 });
@@ -490,7 +354,6 @@ define('ave:views/ave-principal/detail', [
             this.fodaManager.cargar(data.analisis || []);
             
             // Pestañas 7, 9, 10, 11 — Items
-            console.log('Factores a cargar:', data.factoresAplicados);
             this.factoresManager.cargarItems(data.factoresAplicados || []);
             this.decisionesManager.cargarItems(data.decisiones || []);
             this.canalesManager.cargarItems(data.canales || []);
@@ -512,6 +375,53 @@ define('ave:views/ave-principal/detail', [
             this.assignedUserImageId = ave.assignedUserImageId;
             this.teamName = ave.teamName;
             this.teamLogoUrl = null;
+            this.verificarTab1();
+            this.verificarInmueble();
+        },
+
+        _bindTabValidation: function () {
+            var self = this;
+            // Verificar tab-1 cuando el usuario escribe en los campos requeridos
+            this.$el.find('#tipoIdentificacion, #identificacionCliente, #nombreCliente')
+                .on('input change', function () {
+                    self.verificarTab1();
+                });
+
+            // Teléfono: solo permitir dígitos, +, -, espacios y paréntesis
+            this.$el.find('#telefonoCliente').on('input', function () {
+                var cleaned = $(this).val().replace(/[^\d\s\+\-\(\)]/g, '');
+                if ($(this).val() !== cleaned) $(this).val(cleaned);
+            });
+        },
+        verificarTab1: function () {
+            var tipo  = this.$el.find('#tipoIdentificacion').val();
+            var id    = this.$el.find('#identificacionCliente').val().trim();
+            var nombre = this.$el.find('#nombreCliente').val().trim();
+            var completa = tipo && id && nombre;
+
+            if (completa) {
+                this.tabsManager.desbloquearTab('tab-2');
+            } else {
+                this.tabsManager.bloquearTab('tab-2');
+                // Si tab-2 se bloquea, también vuelven a bloquearse tab-3 a 12
+                this.tabsManager.bloquearGrupo([
+                    'tab-3','tab-4','tab-5','tab-6',
+                    'tab-7','tab-8','tab-9','tab-10','tab-11','tab-12'
+                ]);
+            }
+        },
+
+        verificarInmueble: function () {
+            var tieneInmueble = !!(this.inmuebleManager && this.inmuebleManager.inmuebleActual);
+            var TABS_INMUEBLE = [
+                'tab-3','tab-4','tab-5','tab-6',
+                'tab-7','tab-8','tab-9','tab-10','tab-11','tab-12'
+            ];
+            if (tieneInmueble) {
+                this.tabsManager.desbloquearGrupo(TABS_INMUEBLE);
+            } else {
+                this.tabsManager.bloquearGrupo(TABS_INMUEBLE);
+            }
         },
 
         // ─────────────────────────────────────────────────────────────
@@ -640,8 +550,6 @@ define('ave:views/ave-principal/detail', [
                 }
             };
 
-            console.log('Payload a enviar:', payload);
-
             Espo.Ajax.postRequest('AvePrincipal/action/guardar', payload)
                 .then(function (response) {
                     if (response.success) {
@@ -652,7 +560,6 @@ define('ave:views/ave-principal/detail', [
                     }
                 })
                 .catch(function (error) {
-                    console.error('Error en la petición:', error);
                     Espo.Ui.error('Error al guardar el AVE');
                 })
                 .finally(function () {

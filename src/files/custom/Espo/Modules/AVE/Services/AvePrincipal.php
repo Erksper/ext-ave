@@ -74,7 +74,7 @@ class AvePrincipal extends RecordService
                 $em->saveEntity($entity);
             }
         } catch (\Exception $e) {
-            $GLOBALS['log']->warning('AVE heredarTeams: ' . $e->getMessage());
+            // Silently handle team inheritance errors
         }
     }
 
@@ -166,12 +166,6 @@ class AvePrincipal extends RecordService
         $tieneRolesGestion = !$tienePoderCasaNacional && ($esGerente || $esDirector || $esCoordinador);
         $esAsesor = $user->get('type') === 'regular' && !$tieneRolesGestion && !$tienePoderCasaNacional;
 
-        error_log("getUserInfoData para userId: $userId");
-        error_log("  esAsesor: $esAsesor");
-        error_log("  tieneRolesGestion: $tieneRolesGestion");
-        error_log("  esCasaNacional: $tienePoderCasaNacional");
-        error_log("  oficinaUsuario: $oficinaUsuario");
-
         return [
             'esCasaNacional' => $tienePoderCasaNacional,
             'tieneRolesGestion' => $tieneRolesGestion,
@@ -201,7 +195,6 @@ class AvePrincipal extends RecordService
             $stmt->execute(['oficinaId' => $oficinaId]);
             return $stmt->fetchAll(\PDO::FETCH_COLUMN);
         } catch (\Exception $e) {
-            $GLOBALS['log']->error('getUsuariosByOficina: ' . $e->getMessage());
             return [];
         }
     }
@@ -226,7 +219,6 @@ class AvePrincipal extends RecordService
             $stmt->execute(['claId' => $claId]);
             return $stmt->fetchAll(\PDO::FETCH_COLUMN);
         } catch (\Exception $e) {
-            $GLOBALS['log']->error('getUsuariosByCLA: ' . $e->getMessage());
             return [];
         }
     }
@@ -387,7 +379,6 @@ class AvePrincipal extends RecordService
             ];
             
         } catch (\Exception $e) {
-            $GLOBALS['log']->error("Error en getLista: " . $e->getMessage());
             return [
                 'success' => false,
                 'error' => $e->getMessage()
@@ -471,7 +462,7 @@ class AvePrincipal extends RecordService
                             ->where(['userName' => $oficinaId, 'deleted' => 0])
                             ->findOne();
                         if ($logoUser && $logoUser->get('cImagenId')) {
-                            $teamLogoUrl = 'api/v1/Attachment/file/' . $logoUser->get('cImagenId');
+                            $teamLogoUrl = $logoUser->get('cImagenId');
                         }
                     }
                 }
@@ -512,19 +503,14 @@ class AvePrincipal extends RecordService
         $fmtUSDD = fn($v) => $v ? '$ ' . number_format((float)$v, 2, ',', '.') : '-';
         $esc = fn($t) => htmlspecialchars((string)($t ?? ''), ENT_QUOTES, 'UTF-8');
 
-        // Obtener URL base para imágenes
-        $baseUrl = (isset($_SERVER['HTTPS']) ? 'https://' : 'http://') . $_SERVER['HTTP_HOST'] . '/';
-        // Si el sistema está en un subdirectorio, ajustar
-        $scriptName = $_SERVER['SCRIPT_NAME'] ?? '';
-        if (strpos($scriptName, '/public/') !== false) {
-            $baseUrl = $baseUrl . 'api/v1/';
-        } else {
-            $baseUrl = $baseUrl . 'api/v1/';
-        }
-
-        $getImageUrl = function($imageId) use ($baseUrl) {
+        $getImageDataUri = function($imageId) {
             if (!$imageId) return null;
-            return $baseUrl . 'Attachment/file/' . $imageId;
+            $attachment = $this->entityManager->getEntity('Attachment', $imageId);
+            if (!$attachment) return null;
+            $filePath = 'data/upload/' . $imageId;
+            if (!file_exists($filePath)) return null;
+            $mime = $attachment->get('type') ?: 'image/jpeg';
+            return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($filePath));
         };
 
         $formatTipo = function($tipo) {
@@ -588,7 +574,7 @@ class AvePrincipal extends RecordService
             .impacto-positivo { color: #27ae60; }
             .impacto-negativo { color: #e74c3c; }
             .ref-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 11px; }
-            .ref-table th, .ref-table td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+            .ref-table th, .ref-table td { border: 1px solid #ddd; padding: 6px; text-align: left; word-break: break-word; overflow-wrap: break-word; max-width: 150px; }
             .ref-table th { background: #B8A279; color: white; }
             .foto-thumb { max-width: 50px; max-height: 50px; border-radius: 4px; }
             .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #B8A279; padding-bottom: 15px; }
@@ -607,8 +593,9 @@ class AvePrincipal extends RecordService
         // Header
         $html .= '<div class="header">';
         $html .= '<div class="logo">';
-        if ($teamLogoUrl) {
-            $html .= '<img src="' . $teamLogoUrl . '" onerror="this.style.display=\'none\'">';
+        $logoDataUri = $teamLogoUrl ? $getImageDataUri($teamLogoUrl) : null;
+        if ($logoDataUri) {
+            $html .= '<img src="' . $logoDataUri . '">';
         } else {
             $html .= '<div style="width: 80px; height: 80px; background: #B8A279; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 40px;">🏢</div>';
         }
@@ -642,8 +629,8 @@ class AvePrincipal extends RecordService
         $html .= '<td>' . $esc($formatTipo($inmueble['tipoPropiedad'] ?? '')) . ' - ' . $esc($formatSubtipo($inmueble['subtipoPropiedad'] ?? '')) . '</td>';
         $html .= '<td rowspan="6" class="foto-inmueble">';
         if (!empty($inmueble['fotoId'])) {
-            $imgUrl = $getImageUrl($inmueble['fotoId']);
-            $html .= '<img src="' . $imgUrl . '" style="max-width: 130px; max-height: 130px; border-radius: 8px; border: 1px solid #ddd;" onerror="this.style.display=\'none\'">';
+            $imgUrl = $getImageDataUri($inmueble['fotoId']);
+            $html .= $imgUrl ? '<img src="' . $imgUrl . '" ...>' : '';
         } else {
             $html .= '<div style="width: 130px; height: 100px; background: #f0f0f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #999;"><i class="fas fa-image" style="font-size: 30px;"></i></div>';
         }
@@ -661,7 +648,7 @@ class AvePrincipal extends RecordService
         $html .= '</div>';
 
         // Tabla de referencias
-        $buildRefTable = function($refs, $titulo) use ($esc, $fmtUSD, $formatTipo, $formatSubtipo, $getImageUrl) {
+        $buildRefTable = function($refs, $titulo) use ($esc, $fmtUSD, $formatTipo, $formatSubtipo, $getImageDataUri) {
             if (empty($refs)) return '';
             $refs = array_values($refs);
             $h = '<h3>' . $titulo . '</h3><div><table class="ref-table"><thead><tr><th>Característica</th>';
@@ -691,8 +678,15 @@ class AvePrincipal extends RecordService
             $h .= '<tr>';
             $h .= '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Enlace</strong></td>';
             foreach ($refs as $r) { 
-                $enlace = $r['enlace'] ?? ''; 
-                $h .= '<td style="padding: 8px; border: 1px solid #ddd;">' . ($enlace ? '<a href="' . $esc($enlace) . '" target="_blank" rel="noopener">' . $esc($enlace) . '</a>' : '-') . '</td>';
+                $enlace = $r['enlace'] ?? '';
+                if ($enlace) {
+                    $enlaceCorto = strlen($enlace) > 60 ? substr($enlace, 0, 57) . '...' : $enlace;
+                    $h .= '<td style="padding: 8px; border: 1px solid #ddd; word-break: break-all; font-size: 9px;">';
+                    $h .= '<a href="' . $esc($enlace) . '">' . $esc($enlaceCorto) . '</a>';
+                    $h .= '</td>';
+                } else {
+                    $h .= '<td style="padding: 8px; border: 1px solid #ddd;">-</td>';
+                }
             }
             $h .= '</tr>';
             
@@ -701,7 +695,8 @@ class AvePrincipal extends RecordService
             $h .= '<td style="padding: 8px; border: 1px solid #ddd; background: #f5f5f5;"><strong>Foto</strong></td>';
             foreach ($refs as $r) { 
                 $fid = $r['fotoId'] ?? ''; 
-                $h .= '<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' . ($fid ? '<img src="' . $getImageUrl($fid) . '" style="max-width: 50px; max-height: 50px; border-radius: 4px;" onerror="this.style.display=\'none\'">' : '-') . '</td>';
+                $dataUri = $fid ? $getImageDataUri($fid) : null;
+                $h .= '<td style="padding: 8px; border: 1px solid #ddd; text-align: center;">' . ($dataUri ? '<img src="' . $dataUri . '" style="max-width: 50px; max-height: 50px; border-radius: 4px;">' : '-') . '</td>';
             }
             $h .= '</tr>';
             
@@ -906,9 +901,6 @@ class AvePrincipal extends RecordService
 
     private function getFactoresAplicados(string $avePrincipalId): array
     {
-        $GLOBALS['log']->info('=== getFactoresAplicados ===');
-        $GLOBALS['log']->info('AVE ID: ' . $avePrincipalId);
-        
         $items = $this->entityManager->getRDBRepository('AveFactorAplicado')
             ->where(['avePrincipalId' => $avePrincipalId, 'deleted' => 0])
             ->order('id', 'ASC')
@@ -940,17 +932,11 @@ class AvePrincipal extends RecordService
             $this->entityManager->saveEntity($ave);
         }
 
-        $GLOBALS['log']->info('Total factores encontrados: ' . count($result));
-        
         return $result;
     }
 
     private function guardarFactoresAplicados(string $avePrincipalId, array $factores): void
     {
-        $GLOBALS['log']->info('=== guardarFactoresAplicados ===');
-        $GLOBALS['log']->info('AVE ID: ' . $avePrincipalId);
-        $GLOBALS['log']->info('Factores recibidos: ' . json_encode($factores));
-        
         $em = $this->entityManager;
         
         // Eliminar existentes
@@ -960,18 +946,14 @@ class AvePrincipal extends RecordService
         
         foreach ($existentes as $f) { 
             $em->removeEntity($f);
-            $GLOBALS['log']->info('Eliminado factor existente: ' . $f->getId());
         }
         
         $totalImpacto = 0;
-        $guardados = 0;
         
         foreach ($factores as $factor) {
             $arr = (array) $factor;
-            $GLOBALS['log']->info('Procesando factor: ' . json_encode($arr));
             
             if (empty($arr['factorCatalogoId'])) {
-                $GLOBALS['log']->warning('Factor sin factorCatalogoId');
                 continue;
             }
             
@@ -985,8 +967,6 @@ class AvePrincipal extends RecordService
             $entity->set('impactoPorcentual', $tipo === 'positivo' ? 1 : -1);
             
             $em->saveEntity($entity);
-            $guardados++;
-            $GLOBALS['log']->info('Factor guardado: ' . $entity->getId());
         }
         
         $ave = $em->getEntity('AvePrincipal', $avePrincipalId);
@@ -994,8 +974,6 @@ class AvePrincipal extends RecordService
             $ave->set('totalImpactoFactores', $totalImpacto); 
             $em->saveEntity($ave);
         }
-        
-        $GLOBALS['log']->info('Factores guardados: ' . $guardados . '/' . count($factores) . ' - Impacto total: ' . $totalImpacto);
     }
 
     // ──────────────────────────────────────────────────────────────
@@ -1554,12 +1532,6 @@ class AvePrincipal extends RecordService
 
     public function debugReferencias(string $avePrincipalId): void
     {
-        $referencias = $this->entityManager->getRDBRepository('AveInmuebleReferencia')
-            ->where(['avePrincipalId' => $avePrincipalId])->find();
-        $GLOBALS['log']->info('=== DEBUG REFERENCIAS AVE: ' . $avePrincipalId . ' ===');
-        $GLOBALS['log']->info('Total: ' . count($referencias));
-        foreach ($referencias as $ref) {
-            $GLOBALS['log']->info('ID: ' . $ref->getId() . ' Tipo: ' . $ref->get('tipo') . ' UsarCalculo: ' . ($ref->get('usarCalculo') ? 'true' : 'false'));
-        }
+        // Método de depuración eliminado
     }
 }

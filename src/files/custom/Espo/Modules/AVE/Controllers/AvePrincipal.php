@@ -26,7 +26,6 @@ class AvePrincipal extends RecordBase
             return $result;
 
         } catch (\Exception $e) {
-            $GLOBALS['log']->error('Error en getActionGetLista: ' . $e->getMessage());
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -140,7 +139,6 @@ class AvePrincipal extends RecordBase
             return ['success' => true, 'data' => $oficinas];
 
         } catch (\Exception $e) {
-            $GLOBALS['log']->error('AvePrincipal::getOficinasByCLA - ' . $e->getMessage());
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -176,7 +174,6 @@ class AvePrincipal extends RecordBase
             return ['success' => true, 'data' => $asesores];
 
         } catch (\Exception $e) {
-            $GLOBALS['log']->error('AvePrincipal::getAsesoresByOficina - ' . $e->getMessage());
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -295,7 +292,6 @@ class AvePrincipal extends RecordBase
             ];
 
         } catch (\Exception $e) {
-            $GLOBALS['log']->error('Error en recalcularPrecios: ' . $e->getMessage());
             throw new BadRequest($e->getMessage());
         }
     }

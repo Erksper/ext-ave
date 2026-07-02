@@ -70,8 +70,6 @@ define('ave:views/ave-principal/modules/preview', [], function () {
         var teamName = ave.teamName || null;
         var teamLogoUrl = view.teamLogoUrl || null;
         
-        console.log('teamLogoUrl en preview:', teamLogoUrl);
-        
         var fechaActual = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
         var horaActual = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 

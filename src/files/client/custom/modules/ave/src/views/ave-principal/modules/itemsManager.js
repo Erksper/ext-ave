@@ -81,10 +81,6 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
 
         // Obtener IDs de los items ya agregados
         var idsAgregados = this.items.map(function (i) { return String(i.id); });
-        
-        console.log('Poblar select - Tipo:', this.tipo);
-        console.log('Items agregados IDs:', idsAgregados);
-        console.log('Catálogo completo:', this.catalogo);
 
         $select.empty().append('<option value="">-- Seleccione ' + this.labelSingular + ' --</option>');
         
@@ -95,24 +91,18 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
                 $select.append('<option value="' + item.id + '">' + text + '</option>');
             }
         });
-        
-        console.log('Opciones disponibles en select:', $select.find('option').length - 1);
     };
 
     ItemsManager.prototype.cargarItems = function (items) {
-        console.log('cargarItems - tipo:', this.tipo);
-        console.log('items recibidos:', items);
-        
         if (this.tipo === 'factor') {
             // Filtrar solo los factores que tienen descripcion igual al subtipo actual
             var subtipoActual = this.getSubtipoInmueble();
-            console.log('Subtipo actual:', subtipoActual);
             
             if (subtipoActual) {
                 // Mapear los items para que tengan la estructura correcta
                 this.items = (items || []).map(function(item) {
                     return {
-                        id: item.factorCatalogoId || item.id,  // ← Asegurar que el ID sea correcto
+                        id: item.factorCatalogoId || item.id,
                         name: item.factorName || item.name,
                         tipo: item.tipo || 'positivo',
                         descripcion: item.descripcion || subtipoActual
@@ -137,9 +127,8 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
             this.items = items || [];
         }
         
-        console.log('Items cargados (con IDs):', this.items);
         this.renderizar();
-        this.poblarSelect();  // ← Esto ahora filtrará los items ya agregados
+        this.poblarSelect();
         if (this.tipo === 'factor') {
             this.actualizarTotalImpacto();
         }
@@ -289,7 +278,7 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
             
             // Renderizar tabla y actualizar select (esto quitará el item del select)
             self.renderizar();
-            self.poblarSelect();  // ← Esto actualizará el select eliminando el item agregado
+            self.poblarSelect();
             self.actualizarTotalImpacto();
             
             Espo.Ui.success('Factor agregado como ' + (tipoImpacto === 'positivo' ? 'positivo' : 'negativo'));
@@ -386,7 +375,7 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
             tipo:          this.tipo,
             descripcion:   '',
             predeterminado: esPredeterminado,
-            teamId:        null  // Por defecto null
+            teamId:        null
         };
         
         // Solo guardar teamId si NO es predeterminado
@@ -445,10 +434,9 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
     };
 
     ItemsManager.prototype.quitar = function (idx) {
-        console.log('Quitando factor índice:', idx);
         this.items.splice(idx, 1);
         this.renderizar();
-        this.poblarSelect();  // ← Esto hará que el factor vuelva a aparecer en el select
+        this.poblarSelect();
         if (this.tipo === 'factor') {
             this.actualizarTotalImpacto();
         }
@@ -546,7 +534,6 @@ define('ave:views/ave-principal/modules/itemsManager', [], function () {
 
     ItemsManager.prototype.getData = function () {
         if (this.tipo === 'factor') {
-            console.log('Factores a guardar:', this.items);
             return this.items.map(function (i) {
                 return {
                     factorCatalogoId: i.id,
