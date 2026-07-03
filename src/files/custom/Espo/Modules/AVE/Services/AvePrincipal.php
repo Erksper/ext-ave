@@ -796,12 +796,33 @@ class AvePrincipal extends RecordService
 
         // Footer
         $html .= '<div class="footer">';
-        $html .= '<p>Nuestra mayor satisfacción es poner a su disposición la información necesaria y datos referenciales que le sirvan de apoyo para tomar la mejor decisión.</p>';
-        $html .= '<p><strong>Saludos cordiales</strong><br>' . $esc($ave['assignedUserName'] ?? 'Asesor') . '<br>Asesor Inmobiliario</p>';
-        if (!empty($ave['teamName'])) {
-            $html .= '<p>🏢 ' . $esc($ave['teamName']) . '</p>';
+        $html .= '<p>Sr(a) ' . $esc($ave['nombreCliente'] ?? 'Cliente') . ', nuestra mayor satisfacción es poner a su disposición la información necesaria y datos referenciales que le sirvan de apoyo para tomar la mejor decisión en la venta de su inmueble y poder contribuir en el bienestar de su familia, siempre a sus órdenes para brindarle el mejor servicio inmobiliario.</p>';
+        $html .= '<hr style="margin: 15px auto; width: 50%; border-color: #ddd;">';
+        $html .= '<p><strong>Saludos cordiales,</strong></p>';
+
+        // Tabla asesor: foto circular + nombre
+        $html .= '<table style="margin: 0 auto; border-collapse: collapse;"><tr style="vertical-align: middle;">';
+        $asesorImageId = $ave['assignedUserImageId'] ?? null;
+        $asesorDataUri = $asesorImageId ? $getImageDataUri($asesorImageId) : null;
+        if ($asesorDataUri) {
+            $html .= '<td style="padding-right: 15px;">';
+            $html .= '<img src="' . $asesorDataUri . '" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #B8A279;">';
+            $html .= '</td>';
+        } else {
+            $html .= '<td style="padding-right: 15px;">';
+            $html .= '<div style="width: 60px; height: 60px; border-radius: 50%; background: #B8A279; text-align: center; line-height: 60px; color: white; font-size: 28px;">&#128100;</div>';
+            $html .= '</td>';
         }
-        $html .= '<p>Fecha de emisión: ' . $fechaActual . ' ' . $horaActual . '</p>';
+        $html .= '<td style="text-align: left;">';
+        $html .= '<p style="margin: 0; font-weight: bold; font-size: 15px;">' . $esc($ave['assignedUserName'] ?? 'Asesor') . '</p>';
+        $html .= '<p style="margin: 3px 0 0; font-size: 12px; color: #666;">Asesor Inmobiliario</p>';
+        if (!empty($ave['teamName'])) {
+            $html .= '<p style="margin: 3px 0 0; font-size: 12px; color: #666;">&#127962; ' . $esc($ave['teamName']) . '</p>';
+        }
+        $html .= '</td>';
+        $html .= '</tr></table>';
+
+        $html .= '<p style="margin-top: 15px; font-size: 10px; color: #999;">Fecha de emisión: ' . $fechaActual . ' ' . $horaActual . '</p>';
         $html .= '</div>';
 
         $html .= '</body></html>';
