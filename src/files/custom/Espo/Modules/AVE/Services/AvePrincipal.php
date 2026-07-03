@@ -443,27 +443,28 @@ class AvePrincipal extends RecordService
         $rangoMax = round($precioOriginal * (1 + $ajustePrecio / 100));
 
         // Logo de la oficina
+        // Se usa getRelation() porque teamsIds es una relación, no un campo directo.
+        // $user->get('teamsIds') devuelve null si no se carga la relación explícitamente.
         $teamLogoUrl = null;
         $assignedUserId = $ave['assignedUserId'] ?? null;
         if ($assignedUserId) {
             $user = $em->getEntity('User', $assignedUserId);
             if ($user) {
-                $teamIds = $user->get('teamsIds');
-                if ($teamIds && is_array($teamIds)) {
-                    $oficinaId = null;
-                    foreach ($teamIds as $tid) {
-                        if (strpos($tid, 'CLA') !== 0) {
-                            $oficinaId = $tid;
-                            break;
-                        }
+                $teams = $em->getRelation($user, 'teams')->find();
+                $oficinaId = null;
+                foreach ($teams as $team) {
+                    $tid = $team->getId();
+                    if (strpos($tid, 'CLA') !== 0 && strpos(strtolower($tid), 'venezuela') === false) {
+                        $oficinaId = $tid;
+                        break;
                     }
-                    if ($oficinaId) {
-                        $logoUser = $em->getRepository('User')
-                            ->where(['userName' => $oficinaId, 'deleted' => 0])
-                            ->findOne();
-                        if ($logoUser && $logoUser->get('cImagenId')) {
-                            $teamLogoUrl = $logoUser->get('cImagenId');
-                        }
+                }
+                if ($oficinaId) {
+                    $logoUser = $em->getRDBRepository('User')
+                        ->where(['userName' => $oficinaId, 'deleted' => 0])
+                        ->findOne();
+                    if ($logoUser && $logoUser->get('cImagenId')) {
+                        $teamLogoUrl = $logoUser->get('cImagenId');
                     }
                 }
             }
@@ -509,6 +510,30 @@ class AvePrincipal extends RecordService
             if (!$attachment) return null;
             $filePath = 'data/upload/' . $imageId;
             if (!file_exists($filePath)) return null;
+
+            // Convertir a JPEG via GD para máxima compatibilidad con Dompdf
+            // (resuelve PNG con transparencia, WebP, GIF y otros formatos problemáticos)
+            if (function_exists('imagecreatefromstring')) {
+                $rawData = file_get_contents($filePath);
+                $img = @imagecreatefromstring($rawData);
+                if ($img !== false) {
+                    $w = imagesx($img);
+                    $h = imagesy($img);
+                    // Canvas blanco para preservar transparencias
+                    $canvas = imagecreatetruecolor($w, $h);
+                    $white  = imagecolorallocate($canvas, 255, 255, 255);
+                    imagefill($canvas, 0, 0, $white);
+                    imagecopy($canvas, $img, 0, 0, 0, 0, $w, $h);
+                    ob_start();
+                    imagejpeg($canvas, null, 92);
+                    $jpeg = ob_get_clean();
+                    imagedestroy($img);
+                    imagedestroy($canvas);
+                    return 'data:image/jpeg;base64,' . base64_encode($jpeg);
+                }
+            }
+
+            // Fallback: devolver raw si GD no está disponible
             $mime = $attachment->get('type') ?: 'image/jpeg';
             return 'data:' . $mime . ';base64,' . base64_encode(file_get_contents($filePath));
         };
@@ -800,27 +825,21 @@ class AvePrincipal extends RecordService
         $html .= '<hr style="margin: 15px auto; width: 50%; border-color: #ddd;">';
         $html .= '<p><strong>Saludos cordiales,</strong></p>';
 
-        // Tabla asesor: foto circular + nombre
-        $html .= '<table style="margin: 0 auto; border-collapse: collapse;"><tr style="vertical-align: middle;">';
+        // Bloque asesor centrado (compatible con Dompdf: sin flexbox)
         $asesorImageId = $ave['assignedUserImageId'] ?? null;
         $asesorDataUri = $asesorImageId ? $getImageDataUri($asesorImageId) : null;
+        $html .= '<div style="text-align: center; margin: 10px 0;">';
         if ($asesorDataUri) {
-            $html .= '<td style="padding-right: 15px;">';
-            $html .= '<img src="' . $asesorDataUri . '" style="width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid #B8A279;">';
-            $html .= '</td>';
+            $html .= '<img src="' . $asesorDataUri . '" style="width: 60px; height: 60px; border-radius: 50%; border: 2px solid #B8A279; display: block; margin: 0 auto 8px auto;">';
         } else {
-            $html .= '<td style="padding-right: 15px;">';
-            $html .= '<div style="width: 60px; height: 60px; border-radius: 50%; background: #B8A279; text-align: center; line-height: 60px; color: white; font-size: 28px;">&#128100;</div>';
-            $html .= '</td>';
+            $html .= '<div style="width: 60px; height: 60px; border-radius: 50%; background: #B8A279; line-height: 60px; color: white; font-size: 28px; margin: 0 auto 8px auto;">&#128100;</div>';
         }
-        $html .= '<td style="text-align: left;">';
-        $html .= '<p style="margin: 0; font-weight: bold; font-size: 15px;">' . $esc($ave['assignedUserName'] ?? 'Asesor') . '</p>';
+        $html .= '<p style="margin: 0; font-weight: bold; font-size: 14px;">' . $esc($ave['assignedUserName'] ?? 'Asesor') . '</p>';
         $html .= '<p style="margin: 3px 0 0; font-size: 12px; color: #666;">Asesor Inmobiliario</p>';
         if (!empty($ave['teamName'])) {
             $html .= '<p style="margin: 3px 0 0; font-size: 12px; color: #666;">&#127962; ' . $esc($ave['teamName']) . '</p>';
         }
-        $html .= '</td>';
-        $html .= '</tr></table>';
+        $html .= '</div>';
 
         $html .= '<p style="margin-top: 15px; font-size: 10px; color: #999;">Fecha de emisión: ' . $fechaActual . ' ' . $horaActual . '</p>';
         $html .= '</div>';
