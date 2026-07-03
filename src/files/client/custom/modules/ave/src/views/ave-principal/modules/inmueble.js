@@ -12,8 +12,7 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
     // ─────────────────────────────────────────────────────────────
     InmuebleManager.prototype.setup = function () {
         var self = this;
-        
-        // Evento para cuando cambia el subtipo
+
         this.view.$el.find('#inm-m-subtipoPropiedad').off('change.inmueble').on('change.inmueble', function () {
             self.actualizarEstadoAreaTerreno();
         });
@@ -26,16 +25,13 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
         var subtipo = this.view.$el.find('#inm-m-subtipoPropiedad').val();
         var $areaTerreno = this.view.$el.find('#inm-m-areaTerreno');
         var $areaTerrenoGroup = $areaTerreno.closest('.col-md-3');
-        
-        // Subtipos que NO deben tener área de terreno
+
         var subtiposSinTerreno = ['departamento', 'oficinas', 'local', 'penthouse'];
-        
-        // Remover mensaje existente si hay
+
         $areaTerrenoGroup.find('small.text-muted').remove();
-        
+
         if (subtiposSinTerreno.indexOf(subtipo) !== -1) {
-            $areaTerreno.prop('disabled', true);
-            $areaTerreno.val('');
+            $areaTerreno.prop('disabled', true).val('');
             $areaTerrenoGroup.css('opacity', '0.6');
             $areaTerrenoGroup.append('<small class="text-muted" style="display:block; font-size:11px;">No aplica para este tipo de propiedad</small>');
         } else {
@@ -77,13 +73,11 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
             }
         });
 
-        // Setup de foto y eventos al abrir el modal
         this.view.$el.find('#modalInmueble').off('show.bs.modal').on('show.bs.modal', function () {
             self.setupFoto();
             self.setup();
         });
-        
-        // Llamar al setup inicial
+
         this.setup();
     };
 
@@ -112,7 +106,6 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
                 return;
             }
 
-            // Preview local inmediato
             var reader = new FileReader();
             reader.onload = function (ev) {
                 $img.attr('src', ev.target.result);
@@ -120,7 +113,6 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
             };
             reader.readAsDataURL(file);
 
-            // Subir al servidor
             var formData = new FormData();
             formData.append('file', file);
 
@@ -217,10 +209,10 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
         this.view.$el.find('#inm-area').text(data.areaConstruida ? data.areaConstruida + ' m²' : '-');
         this.view.$el.find('#inm-area-terreno').text(data.areaTerreno ? data.areaTerreno + ' m²' : '-');
         this.view.$el.find('#inm-hab-ban').text((data.numHabitaciones || '-') + ' hab / ' + (data.numBanos || '-') + ' baños');
+
         var ubicacion = [data.urbanizacion, data.ciudad, data.estado].filter(Boolean).join(', ');
         this.view.$el.find('#inm-ubicacion').text(ubicacion || '-');
 
-        // Foto en tarjeta
         var $fotoEl = this.view.$el.find('#inm-card-foto');
         if (data.fotoId) {
             $fotoEl.html('<img src="api/v1/Attachment/file/' + data.fotoId + '" class="ave-inm-card-foto" alt="foto inmueble">');
@@ -230,7 +222,6 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
 
         this.view.$el.find('#inmueble-seleccionado').show();
         this.view.$el.find('#inmueble-vacio').hide();
-        if (this.view.verificarInmueble) this.view.verificarInmueble();
     };
 
     InmuebleManager.prototype.limpiarSeleccion = function () {
@@ -239,18 +230,19 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
         this.view.$el.find('#inmueble-seleccionado').hide();
         this.view.$el.find('#inmueble-vacio').show();
         this.view.$el.find('#inmueble-search-input').val('').focus();
-        if (this.view.verificarInmueble) this.view.verificarInmueble();
     };
 
-    // Formateadores para mostrar textos amigables
+    // ─────────────────────────────────────────────────────────────
+    // Formateadores
+    // ─────────────────────────────────────────────────────────────
     InmuebleManager.prototype.formatTipo = function (tipo) {
         var map = {
             departamento: 'Departamento',
-            casa: 'Casa',
-            comercial: 'Comercial',
-            industrial: 'Industrial',
-            vacacional: 'Vacacional',
-            terreno: 'Terreno'
+            casa:         'Casa',
+            comercial:    'Comercial',
+            industrial:   'Industrial',
+            vacacional:   'Vacacional',
+            terreno:      'Terreno'
         };
         return map[tipo] || tipo || '-';
     };
@@ -258,43 +250,40 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
     InmuebleManager.prototype.formatSubtipo = function (subtipo) {
         if (!subtipo) return '-';
         var map = {
-            apartamento: 'Apartamento',
-            casa: 'Casa',
-            'town-house': 'Town-House',
-            terreno: 'Terreno',
-            edificio: 'Edificio',
-            oficinas: 'Oficinas',
-            local: 'Local',
-            penthouse: 'Penthouse',
-            galpon: 'Galpón',
-            quinta: 'Quinta',
-            hacienda: 'Hacienda',
-            deposito: 'Depósito',
-            'hotel-posada': 'Hotel/Posada',
-            'fondo-de-comercio': 'Fondo de comercio',
-            negocio: 'Negocio',
-            'casa-bote': 'Casa bote',
-            clinica: 'Clínica',
-            fabrica: 'Fábrica',
-            finca: 'Finca',
-            club: 'Club',
-            'tiempo-compartido': 'Tiempo compartido',
-            nave: 'Nave',
-            'casa-duplex': 'Casa dúplex',
-            bodega: 'Bodega',
+            apartamento:           'Apartamento',
+            casa:                  'Casa',
+            'town-house':          'Town-House',
+            terreno:               'Terreno',
+            edificio:              'Edificio',
+            oficinas:              'Oficinas',
+            local:                 'Local',
+            penthouse:             'Penthouse',
+            galpon:                'Galpón',
+            quinta:                'Quinta',
+            hacienda:              'Hacienda',
+            deposito:              'Depósito',
+            'hotel-posada':        'Hotel/Posada',
+            'fondo-de-comercio':   'Fondo de comercio',
+            negocio:               'Negocio',
+            'casa-bote':           'Casa bote',
+            clinica:               'Clínica',
+            fabrica:               'Fábrica',
+            finca:                 'Finca',
+            club:                  'Club',
+            'tiempo-compartido':   'Tiempo compartido',
+            nave:                  'Nave',
+            'casa-duplex':         'Casa dúplex',
+            bodega:                'Bodega',
             'inmueble-productivo': 'Inmueble productivo',
-            rancho: 'Rancho',
-            fraccionamiento: 'Fraccionamiento'
+            rancho:                'Rancho',
+            fraccionamiento:       'Fraccionamiento'
         };
-        // Si el subtipo es "departamento" (valor antiguo), mapearlo a Apartamento
-        if (subtipo === 'departamento') {
-            return 'Apartamento';
-        }
-        return map[subtipo] || subtipo.replace(/-/g, ' ').replace(/\b\w/g, function(l) { return l.toUpperCase(); });
+        if (subtipo === 'departamento') return 'Apartamento';
+        return map[subtipo] || subtipo.replace(/-/g, ' ').replace(/\b\w/g, function (l) { return l.toUpperCase(); });
     };
 
     // ─────────────────────────────────────────────────────────────
-    // Modal para nuevo inmueble
+    // Modal para nuevo / editar inmueble
     // ─────────────────────────────────────────────────────────────
     InmuebleManager.prototype.abrirModalNuevo = function () {
         this.limpiarModal();
@@ -310,35 +299,24 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
     // Limpiar campos del modal
     // ─────────────────────────────────────────────────────────────
     InmuebleManager.prototype.limpiarModal = function () {
-        this.view.$el.find('#inm-m-id').val('');
-        this.view.$el.find('#inm-m-nombrePropietario').val('');
-        this.view.$el.find('#inm-m-tipoPropiedad').val('');
-        this.view.$el.find('#inm-m-subtipoPropiedad').val('');
-        this.view.$el.find('#inm-m-estado').val('');
-        this.view.$el.find('#inm-m-municipio').val('');
-        this.view.$el.find('#inm-m-parroquia').val('');
-        this.view.$el.find('#inm-m-ciudad').val('');
-        this.view.$el.find('#inm-m-urbanizacion').val('');
-        this.view.$el.find('#inm-m-avenidaCalle').val('');
-        this.view.$el.find('#inm-m-edificioCasa').val('');
-        this.view.$el.find('#inm-m-areaConstruida').val('');
-        this.view.$el.find('#inm-m-areaTerreno').val('');
-        this.view.$el.find('#inm-m-antiguedad').val('');
-        this.view.$el.find('#inm-m-numHabitaciones').val('');
-        this.view.$el.find('#inm-m-numBanos').val('');
-        this.view.$el.find('#inm-m-puestoEstacionamiento').val('');
-        this.view.$el.find('#inm-m-piso').val('');
-        this.view.$el.find('#inm-m-servicios').val('');
-        this.view.$el.find('#inm-m-seguridad').val('');
+        var campos = [
+            '#inm-m-id', '#inm-m-nombrePropietario', '#inm-m-tipoPropiedad',
+            '#inm-m-subtipoPropiedad', '#inm-m-estado', '#inm-m-municipio',
+            '#inm-m-parroquia', '#inm-m-ciudad', '#inm-m-urbanizacion',
+            '#inm-m-avenidaCalle', '#inm-m-edificioCasa', '#inm-m-areaConstruida',
+            '#inm-m-areaTerreno', '#inm-m-antiguedad', '#inm-m-numHabitaciones',
+            '#inm-m-numBanos', '#inm-m-puestoEstacionamiento', '#inm-m-piso',
+            '#inm-m-servicios', '#inm-m-seguridad', '#inm-m-descripcion',
+            '#inm-m-foto', '#inm-m-foto-id'
+        ];
+        var self = this;
+        campos.forEach(function (sel) { self.view.$el.find(sel).val(''); });
+
         this.view.$el.find('#inm-m-ascensores').prop('checked', false);
         this.view.$el.find('#inm-m-terraza').prop('checked', false);
-        this.view.$el.find('#inm-m-descripcion').val('');
-        this.view.$el.find('#inm-m-foto').val('');
-        this.view.$el.find('#inm-m-foto-id').val('');
         this.view.$el.find('#inm-m-foto-preview').hide();
         this.view.$el.find('#inm-m-foto-preview img').attr('src', '');
-        
-        // Limpiar el mensaje de ayuda del área de terreno
+
         var $areaTerrenoGroup = this.view.$el.find('#inm-m-areaTerreno').closest('.col-md-3');
         $areaTerrenoGroup.find('small.text-muted').remove();
         $areaTerrenoGroup.css('opacity', '1');
@@ -371,8 +349,7 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
         this.view.$el.find('#inm-m-ascensores').prop('checked', inmueble.ascensores || false);
         this.view.$el.find('#inm-m-terraza').prop('checked', inmueble.terraza || false);
         this.view.$el.find('#inm-m-descripcion').val(inmueble.descripcion || '');
-        
-        // Foto
+
         if (inmueble.fotoId) {
             this.view.$el.find('#inm-m-foto-id').val(inmueble.fotoId);
             this.view.$el.find('#inm-m-foto-preview img').attr('src', 'api/v1/Attachment/file/' + inmueble.fotoId);
@@ -382,8 +359,7 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
             this.view.$el.find('#inm-m-foto-preview').hide();
             this.view.$el.find('#inm-m-foto-preview img').attr('src', '');
         }
-        
-        // Actualizar estado del área de terreno según el subtipo actual
+
         this.actualizarEstadoAreaTerreno();
     };
 
@@ -395,30 +371,24 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
 
         // ── Campos requeridos ──────────────────────────────────────────
         var requeridos = [
-            { id: '#inm-m-nombrePropietario', label: 'Nombre del propietario',    tipo: 'text' },
-            { id: '#inm-m-tipoPropiedad',     label: 'Tipo de propiedad',         tipo: 'select' },
-            { id: '#inm-m-subtipoPropiedad',  label: 'Subtipo de propiedad',      tipo: 'select' },
-            { id: '#inm-m-estado',            label: 'Estado',                    tipo: 'text' },
-            { id: '#inm-m-municipio',         label: 'Municipio',                 tipo: 'text' },
-            { id: '#inm-m-ciudad',            label: 'Ciudad',                    tipo: 'text' },
-            { id: '#inm-m-urbanizacion',      label: 'Urbanización / Sector',     tipo: 'text' },
-            { id: '#inm-m-avenidaCalle',      label: 'Avenida / Calle',           tipo: 'text' },
-            { id: '#inm-m-edificioCasa',      label: 'Edificio / C.C. / Casa',    tipo: 'text' },
-            { id: '#inm-m-areaConstruida',    label: 'Área Construida',           tipo: 'number' },
-            { id: '#inm-m-antiguedad',        label: 'Antigüedad',                tipo: 'number' },
+            { id: '#inm-m-nombrePropietario', label: 'Nombre del propietario',   tipo: 'text' },
+            { id: '#inm-m-tipoPropiedad',     label: 'Tipo de propiedad',        tipo: 'select' },
+            { id: '#inm-m-subtipoPropiedad',  label: 'Subtipo de propiedad',     tipo: 'select' },
+            { id: '#inm-m-estado',            label: 'Estado',                   tipo: 'text' },
+            { id: '#inm-m-municipio',         label: 'Municipio',                tipo: 'text' },
+            { id: '#inm-m-ciudad',            label: 'Ciudad',                   tipo: 'text' },
+            { id: '#inm-m-urbanizacion',      label: 'Urbanización / Sector',    tipo: 'text' },
+            { id: '#inm-m-avenidaCalle',      label: 'Avenida / Calle',          tipo: 'text' },
+            { id: '#inm-m-edificioCasa',      label: 'Edificio / C.C. / Casa',   tipo: 'text' },
+            { id: '#inm-m-areaConstruida',    label: 'Área Construida',          tipo: 'number' },
+            { id: '#inm-m-antiguedad',        label: 'Antigüedad',               tipo: 'number' },
         ];
 
         for (var i = 0; i < requeridos.length; i++) {
             var campo = requeridos[i];
-            var $el = this.view.$el.find(campo.id);
-            var valor = campo.tipo === 'number'
-                ? parseFloat($el.val())
-                : $el.val().trim();
-
-            var vacio = campo.tipo === 'number'
-                ? (isNaN(valor) || valor < 0)
-                : !valor;
-
+            var $el   = this.view.$el.find(campo.id);
+            var valor = campo.tipo === 'number' ? parseFloat($el.val()) : $el.val().trim();
+            var vacio = campo.tipo === 'number' ? (isNaN(valor) || valor < 0) : !valor;
             if (vacio) {
                 Espo.Ui.warning(campo.label + ' es requerido');
                 $el.focus();
@@ -426,23 +396,23 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
             }
         }
 
-        // ── Validaciones numéricas (deben ser >= 0) ────────────────────
+        // ── Validaciones numéricas opcionales ─────────────────────────
         var numericos = [
-            { id: '#inm-m-areaConstruida',        label: 'Área Construida',        minVal: 0.01 },
-            { id: '#inm-m-areaTerreno',           label: 'Área de Terreno',        minVal: 0, opcional: true },
-            { id: '#inm-m-antiguedad',            label: 'Antigüedad',             minVal: 0 },
-            { id: '#inm-m-numHabitaciones',       label: 'Habitaciones',           minVal: 0, opcional: true },
-            { id: '#inm-m-numBanos',              label: 'Baños',                  minVal: 0, opcional: true },
-            { id: '#inm-m-puestoEstacionamiento', label: 'Estacionamiento',        minVal: 0, opcional: true },
+            { id: '#inm-m-areaConstruida',        label: 'Área Construida',  minVal: 0.01, opcional: false },
+            { id: '#inm-m-areaTerreno',           label: 'Área de Terreno',  minVal: 0,    opcional: true },
+            { id: '#inm-m-antiguedad',            label: 'Antigüedad',       minVal: 0,    opcional: false },
+            { id: '#inm-m-numHabitaciones',       label: 'Habitaciones',     minVal: 0,    opcional: true },
+            { id: '#inm-m-numBanos',              label: 'Baños',            minVal: 0,    opcional: true },
+            { id: '#inm-m-puestoEstacionamiento', label: 'Estacionamiento',  minVal: 0,    opcional: true },
         ];
 
         for (var j = 0; j < numericos.length; j++) {
-            var num = numericos[j];
+            var num    = numericos[j];
             var rawVal = this.view.$el.find(num.id).val();
-            if (num.opcional && rawVal === '') continue; // campo vacío y es opcional: ok
+            if (num.opcional && rawVal === '') continue;
             var numVal = parseFloat(rawVal);
             if (isNaN(numVal) || numVal < num.minVal) {
-                Espo.Ui.warning(num.label + ': debe ser un número válido' + (num.minVal > 0 ? ' mayor a 0' : ' mayor o igual a 0'));
+                Espo.Ui.warning(num.label + ': debe ser un número válido' + (num.minVal > 0 ? ' mayor a 0' : ''));
                 this.view.$el.find(num.id).focus();
                 return;
             }
@@ -466,11 +436,11 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
             avenidaCalle:          this.view.$el.find('#inm-m-avenidaCalle').val(),
             edificioCasa:          this.view.$el.find('#inm-m-edificioCasa').val(),
             areaConstruida:        parseFloat(this.view.$el.find('#inm-m-areaConstruida').val()) || null,
-            areaTerreno:           parseFloat(this.view.$el.find('#inm-m-areaTerreno').val()) || null,
-            antiguedad:            parseInt(this.view.$el.find('#inm-m-antiguedad').val()) || null,
-            numHabitaciones:       parseFloat(this.view.$el.find('#inm-m-numHabitaciones').val()) || null,
-            numBanos:              parseFloat(this.view.$el.find('#inm-m-numBanos').val()) || null,
-            puestoEstacionamiento: parseInt(this.view.$el.find('#inm-m-puestoEstacionamiento').val()) || null,
+            areaTerreno:           parseFloat(this.view.$el.find('#inm-m-areaTerreno').val())   || null,
+            antiguedad:            parseInt(this.view.$el.find('#inm-m-antiguedad').val())       || null,
+            numHabitaciones:       parseFloat(this.view.$el.find('#inm-m-numHabitaciones').val())       || null,
+            numBanos:              parseFloat(this.view.$el.find('#inm-m-numBanos').val())              || null,
+            puestoEstacionamiento: parseInt(this.view.$el.find('#inm-m-puestoEstacionamiento').val())   || null,
             piso:                  this.view.$el.find('#inm-m-piso').val(),
             servicios:             this.view.$el.find('#inm-m-servicios').val(),
             seguridad:             this.view.$el.find('#inm-m-seguridad').val(),
@@ -486,13 +456,24 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
                 if (response.success) {
                     Espo.Ui.success(data.id ? 'Inmueble actualizado' : 'Inmueble creado');
                     self.view.$el.find('#modalInmueble').modal('hide');
-                    self.seleccionarInmueble(response.data);
+
+                    // Actualizar estado interno ANTES de llamar mostrarInmueble,
+                    // para que verificarInmueble (dentro del wrapper) lea el valor correcto
+                    self.view.inmuebleManager.inmuebleId     = response.data.id;
+                    self.view.inmuebleManager.inmuebleActual = response.data;
+
+                    // Llamar al wrapper de afterRender (que incluye factores, precio y verificarInmueble)
+                    self.view.inmuebleManager.mostrarInmueble(response.data);
                 } else {
                     Espo.Ui.error(response.error || 'Error al guardar el inmueble');
                 }
             })
-            .catch(function () { Espo.Ui.error('Error al guardar el inmueble'); })
-            .finally(function () { $btn.prop('disabled', false).html(orig); });
+            .catch(function () {
+                Espo.Ui.error('Error al guardar el inmueble');
+            })
+            .finally(function () {
+                $btn.prop('disabled', false).html(orig);
+            });
     };
 
     // ─────────────────────────────────────────────────────────────

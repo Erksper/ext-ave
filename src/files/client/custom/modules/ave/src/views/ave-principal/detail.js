@@ -35,7 +35,7 @@ define('ave:views/ave-principal/detail', [
             'click [data-action="toggle-panel"]': function (e) {
                 this.togglePanel(e);
             },
-            
+
             // Pestaña 2 — Inmueble
             'click [data-action="nuevo-inmueble"]': function () {
                 this.inmuebleManager.abrirModalNuevo();
@@ -48,12 +48,12 @@ define('ave:views/ave-principal/detail', [
                     this.inmuebleManager.abrirModalEditar(this.inmuebleManager.inmuebleActual);
                 }
             },
-            
+
             // Pestaña 3 — Situación Legal
             'change .ave-legal-chk': function (e) {
                 this.toggleNotaLegal(e);
             },
-            
+
             // Pestañas 4 y 5 — Referencias
             'click #btn-add-promocion': function () {
                 this.referenciasManager.abrirModal('promocion', null);
@@ -69,7 +69,7 @@ define('ave:views/ave-principal/detail', [
                 var $btn = $(e.currentTarget);
                 this.referenciasManager.eliminar($btn.data('tipo'), parseInt($btn.data('idx')));
             },
-            
+
             // Pestaña 6 — FODA
             'click [data-action="agregar-foda"]': function () {
                 this.fodaManager.abrirModalAgregar();
@@ -81,7 +81,7 @@ define('ave:views/ave-principal/detail', [
                 var $btn = $(e.currentTarget);
                 this.fodaManager.eliminar($btn.data('tipo'), parseInt($btn.data('idx')));
             },
-            
+
             // Pestaña 7 — Factores
             'click [data-action="agregar-factor"]': function () {
                 this.factoresManager.agregarDesdeSelect();
@@ -92,7 +92,9 @@ define('ave:views/ave-principal/detail', [
             'click [data-action="quitar-factor"]': function (e) {
                 this.factoresManager.quitar($(e.currentTarget).data('idx'));
             },
-            
+
+            // Pestaña 8 — Precio Sugerido
+
             // Pestaña 9 — Decisiones
             'click [data-action="agregar-decision"]': function () {
                 this.decisionesManager.agregarDesdeSelect();
@@ -103,7 +105,7 @@ define('ave:views/ave-principal/detail', [
             'click [data-action="quitar-decision"]': function (e) {
                 this.decisionesManager.quitar($(e.currentTarget).data('idx'));
             },
-            
+
             // Pestaña 10 — Medios
             'click [data-action="agregar-canal"]': function () {
                 this.canalesManager.agregarDesdeSelect();
@@ -114,7 +116,7 @@ define('ave:views/ave-principal/detail', [
             'click [data-action="quitar-canal"]': function (e) {
                 this.canalesManager.quitar($(e.currentTarget).data('idx'));
             },
-            
+
             // Pestaña 11 — Plan de Trabajo
             'click [data-action="agregar-plan"]': function () {
                 this.planesManager.agregarDesdeSelect();
@@ -125,16 +127,30 @@ define('ave:views/ave-principal/detail', [
             'click [data-action="quitar-plan"]': function (e) {
                 this.planesManager.quitar($(e.currentTarget).data('idx'));
             },
-            
+
             // Pestaña 12 — Vista Previa
             'click [data-action="generar-preview"]': function () {
                 this.previewManager.generar();
             },
-            
+
             // Validación de email
             'input #correoCliente': function () {
                 this.validarEmail();
             },
+        },
+
+        debugPrecios: function () {
+            var self = this;
+            Espo.Ajax.postRequest('AvePrincipal/action/recalcularPrecios', {
+                aveId: this.aveId,
+                pesoOfertas: parseFloat(this.$el.find('#pesoOfertas').val()) || 50,
+                ajustePrecio: parseFloat(this.$el.find('#ajustePrecio').val()) || 0
+            })
+            .then(function (response) {
+                if (response.success) {
+                    console.log('Valores calculados por el servidor:', response.data);
+                }
+            });
         },
 
         // ─────────────────────────────────────────────────────────────
@@ -142,28 +158,26 @@ define('ave:views/ave-principal/detail', [
         // ─────────────────────────────────────────────────────────────
         setup: function () {
             Dep.prototype.setup.call(this);
-            
-            // Obtener la URL base correcta
+
             this.baseUrl = window.location.origin + window.location.pathname.replace(/\/client\/.*$/, '');
-            
+
             this.aveId = this.model.id;
             if (!this.aveId) {
                 Espo.Ui.error('ID de AVE no proporcionado');
                 this.getRouter().navigate('#AvePrincipal', { trigger: true });
                 return;
             }
-            
+
             // Obtener team del usuario
             var user = this.getUser();
             this.teamId = (user.get('defaultTeamId') || (user.get('teamsIds') || [])[0]) || null;
-            
+
             // Inicializar managers
             this.tabsManager = new TabsManager(this);
             this.inmuebleManager = new InmuebleManager(this);
             this.referenciasManager = new ReferenciasManager(this);
             this.fodaManager = new FodaManager(this);
-            
-            // Managers genéricos
+
             this.factoresManager = new ItemsManager(this, 'factor', {
                 labelSingular: 'factor',
                 tieneImpacto: true,
@@ -184,7 +198,7 @@ define('ave:views/ave-principal/detail', [
                 tieneImpacto: false,
                 tieneDescripcion: true
             });
-            
+
             this.precioManager = new PrecioManager(this);
             this.previewManager = new PreviewManager(this, this.baseUrl);
         },
@@ -192,22 +206,12 @@ define('ave:views/ave-principal/detail', [
         cargarLogoOficina: function () {
             var self = this;
             var assignedUserId = this.aveData ? this.aveData.assignedUserId : null;
-            
-            if (!assignedUserId) {
-                if (self.previewManager) {
-                    self.previewManager.generar();
-                }
-                return;
-            }
-            
-            // Obtener el usuario asignado
+            if (!assignedUserId) return;
+
             Espo.Ajax.getRequest('User/' + assignedUserId, {
                 select: 'id,name,cImagenId,teamsIds'
             }).then(function (userData) {
-                // Obtener los teams del usuario
                 var teamIds = userData.teamsIds || [];
-                
-                // Buscar un team que NO sea CLA (es la oficina)
                 var oficinaId = null;
                 for (var i = 0; i < teamIds.length; i++) {
                     if (teamIds[i].indexOf('CLA') !== 0) {
@@ -215,172 +219,69 @@ define('ave:views/ave-principal/detail', [
                         break;
                     }
                 }
-                
+
                 if (oficinaId) {
-                    // Buscar el usuario con userName = oficinaId
                     Espo.Ajax.getRequest('User', {
-                        where: [{
-                            type: 'equals',
-                            attribute: 'userName',
-                            value: oficinaId
-                        }],
+                        where: [{ type: 'equals', attribute: 'userName', value: oficinaId }],
                         maxSize: 1,
                         select: 'id,name,cImagenId,userName'
                     }).then(function (response) {
                         var users = response.list || [];
-                        if (users.length > 0 && users[0].cImagenId) {
-                            self.teamLogoUrl = 'api/v1/Attachment/file/' + users[0].cImagenId;
-                        } else {
-                            self.teamLogoUrl = null;
-                        }
-                        
-                        if (self.previewManager) {
-                            self.previewManager.generar();
-                        }
+                        self.teamLogoUrl = (users.length > 0 && users[0].cImagenId)
+                            ? 'api/v1/Attachment/file/' + users[0].cImagenId
+                            : null;
+                        if (self.previewManager) self.previewManager.generar();
                     }).catch(function () {
-                        if (self.previewManager) {
-                            self.previewManager.generar();
-                        }
+                        if (self.previewManager) self.previewManager.generar();
                     });
                 } else {
-                    if (self.previewManager) {
-                        self.previewManager.generar();
-                    }
+                    if (self.previewManager) self.previewManager.generar();
                 }
             }).catch(function () {
-                if (self.previewManager) {
-                    self.previewManager.generar();
-                }
+                if (self.previewManager) self.previewManager.generar();
             });
         },
 
+        // ─────────────────────────────────────────────────────────────
+        // afterRender
+        // ─────────────────────────────────────────────────────────────
         afterRender: function () {
             Dep.prototype.afterRender.call(this);
+
+            // IMPORTANTE: inicializar bloqueo de tabs ANTES de cargar datos
             this.tabsManager.inicializar();
-            this.cargarDatos();
             this._bindTabValidation();
-            
-            // Interceptar cambios del inmueble
-            var originalMostrarInmueble = this.inmuebleManager.mostrarInmueble;
-            this.inmuebleManager.mostrarInmueble = function(data) {
-                originalMostrarInmueble.call(self.inmuebleManager, data);
-                if (self.factoresManager) {
-                    self.factoresManager.recargarPorInmueble();
-                }
-                if (self.precioManager) {
-                    self.precioManager.recargar();
-                }
-            };
-            
-            var originalLimpiarSeleccion = this.inmuebleManager.limpiarSeleccion;
-            this.inmuebleManager.limpiarSeleccion = function() {
-                originalLimpiarSeleccion.call(self.inmuebleManager);
-                if (self.factoresManager) {
-                    self.factoresManager.recargarPorInmueble();
-                }
-                if (self.precioManager) {
-                    self.precioManager.recargar();
-                }
-            };
-        },
 
-        // ─────────────────────────────────────────────────────────────
-        // Carga de datos
-        // ─────────────────────────────────────────────────────────────
-        cargarDatos: function () {
+            this.cargarDatos();
+
             var self = this;
-            this.$el.find('#ave-detail-loading').show();
-            this.$el.find('#ave-detail-content').hide();
 
-            Espo.Ajax.getRequest('AvePrincipal/action/getOrCreate', { id: this.aveId })
-                .then(function (response) {
-                    if (!response.success) throw new Error(response.error || 'Error al cargar');
-                    
-                    self.aveData = response.data.ave;
-                    self.inmuebleData = response.data.inmueble;
-                    
-                    self.$el.find('#ave-detail-loading').hide();
-                    self.$el.find('#ave-detail-content').show();
-                    
-                    var numero = self.aveData.numeroAve || 'Sin número asignado';
-                    self.$el.find('#ave-subtitle').text(numero);
-                    
-                    // PRIMERO: Poblar el formulario
-                    self.poblarFormulario(response.data);
-                    
-                    // SEGUNDO: Cargar catálogos
-                    self.factoresManager.cargarCatalogo(self.teamId);
-                    self.fodaManager.cargarCatalogo(self.teamId);
-                    self.decisionesManager.cargarCatalogo(self.teamId);
-                    self.canalesManager.cargarCatalogo(self.teamId);
-                    self.planesManager.cargarCatalogo(self.teamId);
-                })
-                .catch(function (err) {
-                    self.$el.find('#ave-detail-loading').hide();
-                    Espo.Ui.error('Error al cargar el AVE: ' + (err.message || ''));
-                });
+            // Interceptar cambios del inmueble para notificar a otros managers
+            var originalMostrarInmueble = this.inmuebleManager.mostrarInmueble;
+            this.inmuebleManager.mostrarInmueble = function (data) {
+                originalMostrarInmueble.call(self.inmuebleManager, data);
+                if (self.factoresManager) self.factoresManager.recargarPorInmueble();
+                if (self.precioManager)   self.precioManager.recargar();
+                // Evaluar desbloqueo de tabs 3-12
+                if (self.verificarInmueble) self.verificarInmueble();
+            };
+
+            var originalLimpiarSeleccion = this.inmuebleManager.limpiarSeleccion;
+            this.inmuebleManager.limpiarSeleccion = function () {
+                originalLimpiarSeleccion.call(self.inmuebleManager);
+                if (self.factoresManager) self.factoresManager.recargarPorInmueble();
+                if (self.precioManager)   self.precioManager.recargar();
+                // Volver a bloquear tabs 3-12 al quitar el inmueble
+                if (self.verificarInmueble) self.verificarInmueble();
+            };
         },
 
         // ─────────────────────────────────────────────────────────────
-        // Poblar formulario
+        // Validación y desbloqueo de pestañas
         // ─────────────────────────────────────────────────────────────
-        poblarFormulario: function (data) {
-            var ave = data.ave || {};
-            
-            // Pestaña 1 — Datos Generales
-            this.$el.find('#numeroAve').val(ave.numeroAve || '');
-            this.$el.find('#tipoIdentificacion').val(ave.tipoIdentificacion || '');
-            this.$el.find('#identificacionCliente').val(ave.identificacionCliente || '');
-            this.$el.find('#nombreCliente').val(ave.nombreCliente || '');
-            this.$el.find('#correoCliente').val(ave.correoCliente || '');
-            this.$el.find('#telefonoCliente').val(ave.telefonoCliente || '');
-            
-            // Pestaña 2 — Inmueble
-            this.inmuebleManager.inicializarBuscador();
-            if (data.inmueble) {
-                this.inmuebleManager.mostrarInmueble(data.inmueble);
-                if (this.factoresManager) {
-                    this.factoresManager.recargarPorInmueble();
-                }
-            }
-            
-            // Pestaña 3 — Situación Legal
-            this.poblarLegal(ave);
-            
-            // Pestañas 4 y 5 — Referencias
-            this.referenciasManager.cargar(data.referencias || []);
-            
-            // Pestaña 6 — FODA
-            this.fodaManager.cargar(data.analisis || []);
-            
-            // Pestañas 7, 9, 10, 11 — Items
-            this.factoresManager.cargarItems(data.factoresAplicados || []);
-            this.decisionesManager.cargarItems(data.decisiones || []);
-            this.canalesManager.cargarItems(data.canales || []);
-            this.planesManager.cargarItems(data.planes || []);
-            
-            // Pestaña 8 — Precios
-            this.precioManager.poblar(ave);
-            
-            // Cargar logo de oficina
-            this.cargarLogoOficina();
-            
-            // Recargar precios
-            if (this.precioManager) {
-                this.precioManager.recargar();
-            }
-            
-            // Guardar datos del asesor
-            this.assignedUserName = ave.assignedUserName;
-            this.assignedUserImageId = ave.assignedUserImageId;
-            this.teamName = ave.teamName;
-            this.teamLogoUrl = null;
-            this.verificarTab1();
-            this.verificarInmueble();
-        },
-
         _bindTabValidation: function () {
             var self = this;
+
             // Verificar tab-1 cuando el usuario escribe en los campos requeridos
             this.$el.find('#tipoIdentificacion, #identificacionCliente, #nombreCliente')
                 .on('input change', function () {
@@ -393,9 +294,10 @@ define('ave:views/ave-principal/detail', [
                 if ($(this).val() !== cleaned) $(this).val(cleaned);
             });
         },
+
         verificarTab1: function () {
-            var tipo  = this.$el.find('#tipoIdentificacion').val();
-            var id    = this.$el.find('#identificacionCliente').val().trim();
+            var tipo   = this.$el.find('#tipoIdentificacion').val();
+            var id     = this.$el.find('#identificacionCliente').val().trim();
             var nombre = this.$el.find('#nombreCliente').val().trim();
             var completa = tipo && id && nombre;
 
@@ -403,7 +305,7 @@ define('ave:views/ave-principal/detail', [
                 this.tabsManager.desbloquearTab('tab-2');
             } else {
                 this.tabsManager.bloquearTab('tab-2');
-                // Si tab-2 se bloquea, también vuelven a bloquearse tab-3 a 12
+                // Si tab-2 se bloquea, las demás también
                 this.tabsManager.bloquearGrupo([
                     'tab-3','tab-4','tab-5','tab-6',
                     'tab-7','tab-8','tab-9','tab-10','tab-11','tab-12'
@@ -425,6 +327,108 @@ define('ave:views/ave-principal/detail', [
         },
 
         // ─────────────────────────────────────────────────────────────
+        // Carga de datos
+        // ─────────────────────────────────────────────────────────────
+        cargarDatos: function () {
+            var self = this;
+            this.$el.find('#ave-detail-loading').show();
+            this.$el.find('#ave-detail-content').hide();
+
+            Espo.Ajax.getRequest('AvePrincipal/action/getOrCreate', { id: this.aveId })
+                .then(function (response) {
+                    if (!response.success) throw new Error(response.error || 'Error al cargar');
+
+                    self.aveData = response.data.ave;
+                    self.inmuebleData = response.data.inmueble;
+
+                    self.$el.find('#ave-detail-loading').hide();
+                    self.$el.find('#ave-detail-content').show();
+
+                    var numero = self.aveData.numeroAve || 'Sin número asignado';
+                    self.$el.find('#ave-subtitle').text(numero);
+
+                    // PRIMERO: Poblar el formulario (incluye verificarTab1 + verificarInmueble)
+                    self.poblarFormulario(response.data);
+
+                    // SEGUNDO: Cargar catálogos
+                    self.factoresManager.cargarCatalogo(self.teamId);
+                    self.fodaManager.cargarCatalogo(self.teamId);
+                    self.decisionesManager.cargarCatalogo(self.teamId);
+                    self.canalesManager.cargarCatalogo(self.teamId);
+                    self.planesManager.cargarCatalogo(self.teamId);
+                })
+                .catch(function (err) {
+                    self.$el.find('#ave-detail-loading').hide();
+                    Espo.Ui.error('Error al cargar el AVE: ' + (err.message || ''));
+                });
+        },
+
+        // ─────────────────────────────────────────────────────────────
+        // Poblar formulario
+        // ─────────────────────────────────────────────────────────────
+        poblarFormulario: function (data) {
+            var ave = data.ave || {};
+
+            // Pestaña 1 — Datos Generales
+            this.$el.find('#numeroAve').val(ave.numeroAve || '');
+            this.$el.find('#tipoIdentificacion').val(ave.tipoIdentificacion || '');
+            this.$el.find('#identificacionCliente').val(ave.identificacionCliente || '');
+            this.$el.find('#nombreCliente').val(ave.nombreCliente || '');
+            this.$el.find('#correoCliente').val(ave.correoCliente || '');
+            this.$el.find('#telefonoCliente').val(ave.telefonoCliente || '');
+
+            // Pestaña 2 — Inmueble
+            this.inmuebleManager.inicializarBuscador();
+            if (data.inmueble) {
+                // Llamar al wrapper (monkey-patch) para que también dispare verificarInmueble
+                this.inmuebleManager.mostrarInmueble(data.inmueble);
+                if (this.factoresManager) {
+                    this.factoresManager.recargarPorInmueble();
+                }
+            }
+
+            // Pestaña 3 — Situación Legal
+            this.poblarLegal(ave);
+
+            // Pestañas 4 y 5 — Referencias
+            this.referenciasManager.cargar(data.referencias || []);
+
+            // Pestaña 6 — FODA
+            this.fodaManager.cargar(data.analisis || []);
+
+            // Pestañas 7, 9, 10, 11 — Items
+            this.factoresManager.cargarItems(data.factoresAplicados || []);
+            this.decisionesManager.cargarItems(data.decisiones || []);
+            this.canalesManager.cargarItems(data.canales || []);
+            this.planesManager.cargarItems(data.planes || []);
+
+            // Pestaña 8 — Precios
+            this.precioManager.poblar(ave);
+
+            // Cargar logo de oficina
+            this.cargarLogoOficina();
+
+            // Recargar precios
+            if (this.precioManager) {
+                this.precioManager.recargar();
+            }
+
+            // Guardar datos del asesor
+            this.assignedUserName    = ave.assignedUserName;
+            this.assignedUserImageId = ave.assignedUserImageId;
+            this.teamName            = ave.teamName;
+            this.teamLogoUrl         = null;
+
+            // Evaluar estado de desbloqueo con los datos ya cargados
+            this.verificarTab1();
+            // verificarInmueble ya fue llamado dentro de mostrarInmueble (si había inmueble),
+            // pero si no había inmueble, lo llamamos explícitamente para asegurar que las tabs queden bloqueadas
+            if (!data.inmueble) {
+                this.verificarInmueble();
+            }
+        },
+
+        // ─────────────────────────────────────────────────────────────
         // Pestaña 3 — Legal
         // ─────────────────────────────────────────────────────────────
         poblarLegal: function (ave) {
@@ -434,7 +438,7 @@ define('ave:views/ave-principal/detail', [
                 { chk: 'chk-solvenciaMunicipal', nota: 'nota-solMunNota',   val: 'solMunNota',   bool: 'solvenciaMunicipal' },
                 { chk: 'chk-comentarioLegal',    nota: 'nota-comLegNota',   val: 'comLegNota',   bool: 'comentarioLegal' }
             ];
-            
+
             campos.forEach(function (c) {
                 var checked = !!ave[c.bool];
                 this.$el.find('#' + c.chk).prop('checked', checked);
@@ -462,7 +466,7 @@ define('ave:views/ave-principal/detail', [
             var $header = $(e.currentTarget);
             var $body = $header.closest('.ave-panel').find('.ave-panel-body');
             var $icon = $header.find('.fa-chevron-down, .fa-chevron-up');
-            
+
             if ($body.is(':visible')) {
                 $body.slideUp('fast');
                 $icon.removeClass('fa-chevron-up').addClass('fa-chevron-down');
@@ -513,40 +517,40 @@ define('ave:views/ave-principal/detail', [
             var payload = {
                 aveId: this.aveId,
                 datosGenerales: {
-                    numeroAve: this.$el.find('#numeroAve').val(),
-                    tipoIdentificacion: this.$el.find('#tipoIdentificacion').val(),
+                    numeroAve:             this.$el.find('#numeroAve').val(),
+                    tipoIdentificacion:    this.$el.find('#tipoIdentificacion').val(),
                     identificacionCliente: this.$el.find('#identificacionCliente').val(),
-                    nombreCliente: nombreCliente,
-                    correoCliente: email,
-                    telefonoCliente: this.$el.find('#telefonoCliente').val()
+                    nombreCliente:         nombreCliente,
+                    correoCliente:         email,
+                    telefonoCliente:       this.$el.find('#telefonoCliente').val()
                 },
-                aveInmuebleId: this.inmuebleManager.getInmuebleId(),
+                aveInmuebleId:      this.inmuebleManager.getInmuebleId(),
                 legal: {
-                    cedulaCatastral: this.$el.find('#chk-cedulaCatastral').is(':checked'),
-                    cedCatNota: this.$el.find('#cedCatNota').val(),
-                    registroPropiedad: this.$el.find('#chk-registroPropiedad').is(':checked'),
-                    regProNota: this.$el.find('#regProNota').val(),
+                    cedulaCatastral:    this.$el.find('#chk-cedulaCatastral').is(':checked'),
+                    cedCatNota:         this.$el.find('#cedCatNota').val(),
+                    registroPropiedad:  this.$el.find('#chk-registroPropiedad').is(':checked'),
+                    regProNota:         this.$el.find('#regProNota').val(),
                     solvenciaMunicipal: this.$el.find('#chk-solvenciaMunicipal').is(':checked'),
-                    solMunNota: this.$el.find('#solMunNota').val(),
-                    comentarioLegal: this.$el.find('#chk-comentarioLegal').is(':checked'),
-                    comLegNota: this.$el.find('#comLegNota').val()
+                    solMunNota:         this.$el.find('#solMunNota').val(),
+                    comentarioLegal:    this.$el.find('#chk-comentarioLegal').is(':checked'),
+                    comLegNota:         this.$el.find('#comLegNota').val()
                 },
-                referencias: this.referenciasManager.getData(),
-                analisis: this.fodaManager.getData(),
+                referencias:       this.referenciasManager.getData(),
+                analisis:          this.fodaManager.getData(),
                 factoresAplicados: this.factoresManager.getData(),
-                decisiones: this.decisionesManager.getData(),
-                canales: this.canalesManager.getData(),
-                planes: this.planesManager.getData(),
+                decisiones:        this.decisionesManager.getData(),
+                canales:           this.canalesManager.getData(),
+                planes:            this.planesManager.getData(),
                 precio: {
-                    valorMax: parseFloat(this.$el.find('#valorMax').val()) || null,
-                    precioMax: parseFloat(this.$el.find('#precioMax').val()) || null,
-                    valorMin: parseFloat(this.$el.find('#valorMin').val()) || null,
-                    precioMin: parseFloat(this.$el.find('#precioMin').val()) || null,
-                    valorPromedio: parseFloat(this.$el.find('#valorPromedio').val()) || null,
+                    valorMax:       parseFloat(this.$el.find('#valorMax').val())       || null,
+                    precioMax:      parseFloat(this.$el.find('#precioMax').val())      || null,
+                    valorMin:       parseFloat(this.$el.find('#valorMin').val())       || null,
+                    precioMin:      parseFloat(this.$el.find('#precioMin').val())      || null,
+                    valorPromedio:  parseFloat(this.$el.find('#valorPromedio').val())  || null,
                     precioOriginal: parseFloat(this.$el.find('#precioOriginal').val()) || null,
                     precioSugerido: parseFloat(this.$el.find('#precioSugerido').val()) || null,
-                    ajustePrecio: parseFloat(this.$el.find('#ajustePrecio').val()) || 0,
-                    pesoOfertas: parseFloat(this.$el.find('#pesoOfertas').val())
+                    ajustePrecio:   parseFloat(this.$el.find('#ajustePrecio').val())   || 0,
+                    pesoOfertas:    parseFloat(this.$el.find('#pesoOfertas').val())
                 }
             };
 
@@ -559,7 +563,7 @@ define('ave:views/ave-principal/detail', [
                         Espo.Ui.error(response.error || 'Error al guardar');
                     }
                 })
-                .catch(function (error) {
+                .catch(function () {
                     Espo.Ui.error('Error al guardar el AVE');
                 })
                 .finally(function () {
