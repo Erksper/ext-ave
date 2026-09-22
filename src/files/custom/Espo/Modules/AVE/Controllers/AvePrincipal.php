@@ -9,6 +9,10 @@ use Espo\Core\Exceptions\NotFound;
 
 class AvePrincipal extends RecordBase
 {
+    private const FOTO_MAX_BYTES    = 2 * 1024 * 1024; // 2MB
+    private const FOTO_TARGET_BYTES = 1900000;          // ~1.85MB, deja margen bajo el límite
+    private const FOTO_MAX_DIMENSION = 2560;
+
     public function getActionGetLista(Request $request, Response $response): array
     {
         try {
@@ -196,13 +200,31 @@ class AvePrincipal extends RecordBase
             $name    = basename($file['name']);
             $type    = $file['type'];
 
+            // Respaldo del lado del servidor: si por algún motivo llega una
+            // imagen mayor a 2MB (el normalizador del navegador falló, está
+            // deshabilitado, o el request no vino del cliente web), se
+            // redimensiona/recomprime aquí antes de guardarla.
+            if (strlen($content) > self::FOTO_MAX_BYTES) {
+                $normalizado = $this->normalizarImagenServidor($content);
+                if ($normalizado === null) {
+                    throw new BadRequest("La imagen supera los 2MB y no fue posible optimizarla automáticamente en el servidor.");
+                }
+                $content = $normalizado;
+                $type    = 'image/jpeg';
+                $name    = preg_replace('/\.[^.]+$/', '', $name) . '.jpg';
+
+                if (strlen($content) > self::FOTO_MAX_BYTES) {
+                    throw new BadRequest("La imagen supera los 2MB y no fue posible optimizarla automáticamente en el servidor.");
+                }
+            }
+
             $em = $this->getEntityManager();
 
             $attachment = $em->getNewEntity('Attachment');
             $attachment->set([
                 'name'        => $name,
                 'type'        => $type,
-                'size'        => $file['size'],
+                'size'        => strlen($content),
                 'role'        => 'Attachment',
                 'relatedType' => 'AveInmuebleReferencia',
                 'field'       => 'foto',
@@ -241,6 +263,81 @@ class AvePrincipal extends RecordBase
         }
     }
 
+    /**
+     * Redimensiona/recomprime una imagen (bytes crudos) a JPEG para que quede
+     * por debajo de FOTO_MAX_BYTES. Espeja el criterio del normalizador del
+     * navegador (máx. 2560px de lado mayor, calidad JPEG adaptativa).
+     * Devuelve null si GD no está disponible o si no se pudo procesar.
+     */
+    private function normalizarImagenServidor(string $content): ?string
+    {
+        if (!function_exists('imagecreatefromstring')) {
+            return null;
+        }
+
+        $img = @imagecreatefromstring($content);
+        if ($img === false) {
+            return null;
+        }
+
+        $width  = imagesx($img);
+        $height = imagesy($img);
+
+        if ($width < 1 || $height < 1) {
+            imagedestroy($img);
+            return null;
+        }
+
+        $scale = min(1, self::FOTO_MAX_DIMENSION / max($width, $height));
+        $newWidth  = max(1, (int) round($width * $scale));
+        $newHeight = max(1, (int) round($height * $scale));
+
+        $canvas = imagecreatetruecolor($newWidth, $newHeight);
+        $white  = imagecolorallocate($canvas, 255, 255, 255);
+        imagefill($canvas, 0, 0, $white);
+        imagecopyresampled($canvas, $img, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height);
+        imagedestroy($img);
+
+        $qualities = [90, 85, 80, 75, 70, 65, 60, 55, 50];
+        $jpeg = null;
+
+        foreach ($qualities as $quality) {
+            ob_start();
+            imagejpeg($canvas, null, $quality);
+            $jpeg = ob_get_clean();
+
+            if (strlen($jpeg) <= self::FOTO_TARGET_BYTES) {
+                break;
+            }
+        }
+
+        // Si con la calidad mínima sigue muy pesada, reducir dimensiones.
+        $attempts = 0;
+        while ($jpeg !== null && strlen($jpeg) > self::FOTO_TARGET_BYTES
+            && max($newWidth, $newHeight) > 1400 && $attempts < 10
+        ) {
+            $newWidth  = max(1, (int) round($newWidth * 0.90));
+            $newHeight = max(1, (int) round($newHeight * 0.90));
+
+            $reduced = imagecreatetruecolor($newWidth, $newHeight);
+            $white   = imagecolorallocate($reduced, 255, 255, 255);
+            imagefill($reduced, 0, 0, $white);
+            imagecopyresampled($reduced, $canvas, 0, 0, 0, 0, $newWidth, $newHeight, imagesx($canvas), imagesy($canvas));
+            imagedestroy($canvas);
+            $canvas = $reduced;
+
+            ob_start();
+            imagejpeg($canvas, null, 75);
+            $jpeg = ob_get_clean();
+
+            $attempts++;
+        }
+
+        imagedestroy($canvas);
+
+        return $jpeg;
+    }
+
     public function postActionRecalcularPrecios(Request $request, Response $response): array
     {
         try {
@@ -265,7 +362,7 @@ class AvePrincipal extends RecordBase
             }
 
             if (property_exists($data, 'ajustePrecio')) {
-                $entity->set('ajustePrecio', (float)$data->ajustePrecio);
+                $entity->set('ajustePrecio', max(0, min(40, (float)$data->ajustePrecio)));
                 $em->saveEntity($entity);
             }
 

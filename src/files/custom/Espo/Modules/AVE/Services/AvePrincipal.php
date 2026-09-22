@@ -613,6 +613,7 @@ class AvePrincipal extends RecordService
             .foto-inmueble { width: 130px; text-align: center; vertical-align: middle; }
             .foto-inmueble img { max-width: 130px; max-height: 130px; border-radius: 8px; border: 1px solid #ddd; }
             .frase-dorada { background: linear-gradient(135deg, #F5E6CA 0%, #E8D5B0 100%); border-left: 6px solid #B8A279; border-radius: 8px; padding: 16px 24px; margin: 24px 0; text-align: center; color: #8B6914; font-size: 16px; font-weight: 600; }
+            .pdf-section { page-break-inside: avoid; }
         </style></head><body>';
 
         // Header
@@ -622,7 +623,7 @@ class AvePrincipal extends RecordService
         if ($logoDataUri) {
             $html .= '<img src="' . $logoDataUri . '">';
         } else {
-            $html .= '<div style="width: 80px; height: 80px; background: #B8A279; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: white; font-size: 40px;">🏢</div>';
+            $html .= '<div style="width: 80px; height: 80px; background: #B8A279; border-radius: 12px;"></div>';
         }
         $html .= '</div>';
         $html .= '<div class="titulo">';
@@ -640,13 +641,13 @@ class AvePrincipal extends RecordService
 
         // Ubicación
         $ubicacion = implode(', ', array_filter([$inmueble['urbanizacion'] ?? '', $inmueble['avenidaCalle'] ?? '', $inmueble['ciudad'] ?? '', $inmueble['estado'] ?? '']));
-        $html .= '<div class="ubicacion-box">';
+        $html .= '<div class="ubicacion-box pdf-section">';
         $html .= '<h3 style="margin-top: 0;"><i class="fas fa-map-marker-alt"></i> Ubicación</h3>';
         $html .= '<p><strong>' . $esc($ubicacion ?: 'No especificada') . '</strong></p>';
         $html .= '</div>';
 
         // Ficha del Inmueble
-        $html .= '<div class="ficha-inmueble">';
+        $html .= '<div class="ficha-inmueble pdf-section">';
         $html .= '<h3 style="margin-top: 0;"><i class="fas fa-building"></i> Ficha del Inmueble</h3>';
         $html .= '<table>';
         $html .= '<tr>';
@@ -676,7 +677,7 @@ class AvePrincipal extends RecordService
         $buildRefTable = function($refs, $titulo) use ($esc, $fmtUSD, $formatTipo, $formatSubtipo, $getImageDataUri) {
             if (empty($refs)) return '';
             $refs = array_values($refs);
-            $h = '<h3>' . $titulo . '</h3><div><table class="ref-table"><thead><tr><th>Característica</th>';
+            $h = '<div class="pdf-section"><h3>' . $titulo . '</h3><div><table class="ref-table"><thead><tr><th>Característica</th>';
             foreach ($refs as $i => $r) { $h .= '<th>REF ' . ($i + 1) . '</th>'; }
             $h .= '</tr></thead><tbody>';
             
@@ -725,7 +726,7 @@ class AvePrincipal extends RecordService
             }
             $h .= '</tr>';
             
-            $h .= '</tbody></table></div>';
+            $h .= '</tbody></table></div></div>';
             return $h;
         };
 
@@ -734,16 +735,19 @@ class AvePrincipal extends RecordService
 
         // FODA
         if (!empty($fortalezas) || !empty($debilidades)) {
+            $html .= '<div class="pdf-section">';
             $html .= '<h3>3. ANÁLISIS DE FORTALEZAS Y DEBILIDADES</h3><div class="foda-grid">';
             $html .= '<div class="fortaleza-col"><h4 style="color:#155724; margin-top:0;">✓ Fortalezas</h4>';
             foreach ($fortalezas as $f) { $html .= '<div class="foda-item"><strong>' . $esc($f['tituloName'] ?? '') . '</strong>' . (!empty($f['descripcion']) ? '<br><span>' . $esc($f['descripcion']) . '</span>' : '') . '</div>'; }
             $html .= '</div><div class="debilidad-col"><h4 style="color:#721c24; margin-top:0;">✗ Debilidades</h4>';
             foreach ($debilidades as $d) { $html .= '<div class="foda-item"><strong>' . $esc($d['tituloName'] ?? '') . '</strong>' . (!empty($d['descripcion']) ? '<br><span>' . $esc($d['descripcion']) . '</span>' : '') . '</div>'; }
             $html .= '</div></div>';
+            $html .= '</div>';
         }
 
         // Factores
         if (!empty($factoresAplicados)) {
+            $html .= '<div class="pdf-section">';
             $html .= '<h3>4. FACTORES QUE INFLUYEN EN EL PRECIO</h3><table class="ref-table"><thead><tr><th>Factor</th><th style="width:120px; text-align:center;">Impacto</th><th style="width:100px; text-align:center;">% Afectación</th></tr></thead><tbody>';
             foreach ($factoresAplicados as $factor) {
                 $esPos = ($factor['tipo'] ?? '') === 'positivo';
@@ -758,9 +762,11 @@ class AvePrincipal extends RecordService
             $signo = $totalImpactoFactores >= 0 ? '+' : '';
             $clase = $totalImpactoFactores >= 0 ? 'impacto-positivo' : 'impacto-negativo';
             $html .= '<div class="impacto-box"><strong>📊 Total de afectación:</strong> <span class="' . $clase . '">' . $signo . $totalImpactoFactores . '%</span><br><small>El precio puede verse afectado en un <strong>' . $signo . abs($totalImpactoFactores) . '%</strong></small></div>';
+            $html .= '</div>';
         }
 
         // Situación Legal
+        $html .= '<div class="pdf-section">';
         $html .= '<h3>5. Situación Legal</h3><table>';
         $camposLegal = [
             'Cédula Catastral' => ['bool' => 'cedulaCatastral', 'nota' => 'cedCatNota'],
@@ -774,11 +780,13 @@ class AvePrincipal extends RecordService
             $html .= '<tr><td style="width:30%;"><strong>' . $label . '</strong></td><td style="width:15%;" class="' . ($val ? 'legal-si' : 'legal-no') . '">' . ($val ? 'Sí' : 'No') . '</td><td>' . $nota . '</td></tr>';
         }
         $html .= '</table>';
+        $html .= '</div>';
 
         // Frase dorada
         $html .= '<div class="frase-dorada">"De acuerdo a la información suministrada, ¿qué precio de salida al mercado le pondría usted a su propiedad?"</div>';
 
         // Análisis Integral
+        $html .= '<div class="pdf-section">';
         $html .= '<h3>6. Análisis Integral</h3><table>';
         $html .= '<tr style="background:#f5f5f5;"><td><strong>Síntesis de precio unitario Mts2</strong></td><td><strong>USD x m²</strong></td><td><strong>Precio (USD)</strong></td></tr>';
         $html .= '<tr><td>Precio Promedio Máximo</td><td>' . $fmtUSDD($ave['valorMax'] ?? 0) . '</td><td>' . $fmtUSD($ave['precioMax'] ?? 0) . '</td></tr>';
@@ -795,18 +803,22 @@ class AvePrincipal extends RecordService
             $html .= '<br>Ajuste por factores: ' . $s . $totalImpactoFactores . '% → Precio con factores: ' . $fmtUSD($precioConFactores);
         }
         $html .= '</div>';
+        $html .= '</div>';
 
         // Decisiones
         if (!empty($decisiones)) {
+            $html .= '<div class="pdf-section">';
             $html .= '<h3>7. OPCIONES DE DECISIÓN</h3>';
             foreach ($decisiones as $i => $d) {
                 $html .= '<p><strong>' . ($i + 1) . '. ' . $esc($d['name'] ?? '') . '</strong></p>';
                 if (!empty($d['descripcion'])) $html .= '<p style="margin-left:20px; color:#666;">' . $esc($d['descripcion']) . '</p>';
             }
+            $html .= '</div>';
         }
 
         // Plan de Trabajo
         if (!empty($planes) || !empty($canales)) {
+            $html .= '<div class="pdf-section">';
             $html .= '<h3>8. PLAN DE TRABAJO</h3>';
             foreach ($planes as $i => $p) {
                 $html .= '<p><strong>' . ($i + 1) . '. ' . $esc($p['name'] ?? '') . '</strong></p>';
@@ -817,6 +829,7 @@ class AvePrincipal extends RecordService
                 foreach ($canales as $c) { $html .= '<span class="canal-chip">' . $esc($c['name'] ?? '') . '</span> '; }
                 $html .= '</p>';
             }
+            $html .= '</div>';
         }
 
         // Footer
@@ -1083,7 +1096,7 @@ class AvePrincipal extends RecordService
             $this->setIfSet($entity, 'valorPromedio',  isset($p->valorPromedio)  ? (float)$p->valorPromedio  : null);
             $this->setIfSet($entity, 'precioOriginal', isset($p->precioOriginal) ? (float)$p->precioOriginal : null);
             $this->setIfSet($entity, 'precioSugerido', isset($p->precioSugerido) ? (float)$p->precioSugerido : null);
-            $this->setIfSet($entity, 'ajustePrecio',   isset($p->ajustePrecio)   ? (float)$p->ajustePrecio   : null);
+            $this->setIfSet($entity, 'ajustePrecio',   isset($p->ajustePrecio)   ? max(0, min(40, (float)$p->ajustePrecio)) : null);
 
             if (isset($p->pesoOfertas) && $p->pesoOfertas !== null && $p->pesoOfertas !== '') {
                 $po = max(0, min(100, (float)$p->pesoOfertas));
@@ -1160,6 +1173,7 @@ class AvePrincipal extends RecordService
 
         $ajuste = $entity->get('ajustePrecio') ?? 0;
         if ($ajuste === '') $ajuste = 0;
+        $ajuste = max(0, min(40, (float)$ajuste)); // clamp defensivo (registros antiguos podían tener negativos)
 
         $precioSugerido = $precioVentaBase * (1 + $ajuste / 100);
         $rangoMin       = $precioSugerido  * (1 - abs($ajuste) / 100);

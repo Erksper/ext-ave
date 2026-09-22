@@ -1,4 +1,4 @@
-define('ave:views/ave-principal/modules/referencias', [], function () {
+define('ave:views/ave-principal/modules/referencias', ['ave:views/ave-principal/modules/imageNormalizer'], function (ImageNormalizer) {
 
     var MAX_REFS = 5;
 
@@ -68,7 +68,7 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
         this.view.$el.find('#ref-valorReferencial, #ref-areaConstruida').off('input.ref').on('input.ref', function () {
             self.calcularM2();
         });
-        this.view.$el.find('#ref-subtipoPropiedad').off('change.ref').on('change.ref', function () {
+        this.view.$el.find('#ref-subtipoPropiedad, #ref-tipoPropiedad').off('change.ref').on('change.ref', function () {
             self.actualizarEstadoAreaTerreno();
         });
         this.calcularM2();
@@ -82,38 +82,66 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
         this.view.$el.find('#ref-valorm2').val(m2);
     };
 
-    // Actualizar estado del área de terreno según subtipo
+    // Actualizar estado de las áreas (terreno / construcción) según tipo y subtipo
     ReferenciasManager.prototype.actualizarEstadoAreaTerreno = function () {
+        var tipo = this.view.$el.find('#ref-tipoPropiedad').val();
         var subtipo = this.view.$el.find('#ref-subtipoPropiedad').val();
+
         var $areaTerreno = this.view.$el.find('#ref-areaTerreno');
+        var $areaConstruida = this.view.$el.find('#ref-areaConstruida');
         var $areaTerrenoGroup = $areaTerreno.closest('.col-md-4');
-        var subtiposSinTerreno = ['apartamento', 'oficinas', 'local', 'penthouse'];
-        var subtipoNormalizado = (subtipo || '').toLowerCase();
-        
-        // Remover mensaje existente
+        var $areaConstruidaGroup = $areaConstruida.closest('.col-md-4');
+
+        // Remover mensajes existentes
         $areaTerrenoGroup.find('small.text-muted').remove();
-        
-        if (subtiposSinTerreno.indexOf(subtipoNormalizado) !== -1) {
-            $areaTerreno.prop('disabled', true);
-            $areaTerreno.val('');
-            $areaTerrenoGroup.css('opacity', '0.6');
-            $areaTerrenoGroup.append('<small class="text-muted" style="display:block; font-size:11px;">No aplica para este tipo de propiedad</small>');
-        } else {
+        $areaConstruidaGroup.find('small.text-muted').remove();
+
+        // Coincide exactamente con los valores reales del catálogo
+        // (tipoPropiedad: Terreno / subtipoPropiedad: Parcela)
+        var esTerreno = tipo === 'Terreno' || subtipo === 'Parcela';
+        var subtiposSinTerreno = ['Apartamento', 'Oficina', 'Local Comercial', 'Penthouse'];
+        var sinTerrenoPorSubtipo = subtiposSinTerreno.indexOf(subtipo) !== -1;
+
+        if (esTerreno) {
+            // Es un terreno: se usa el área de terreno, no aplica construcción
             $areaTerreno.prop('disabled', false);
             $areaTerrenoGroup.css('opacity', '1');
+
+            $areaConstruida.prop('disabled', true).val('');
+            $areaConstruidaGroup.css('opacity', '0.6');
+            $areaConstruidaGroup.append('<small class="text-muted" style="display:block; font-size:11px;">No aplica para este tipo de propiedad</small>');
+        } else {
+            $areaConstruida.prop('disabled', false);
+            $areaConstruidaGroup.css('opacity', '1');
+
+            if (sinTerrenoPorSubtipo) {
+                $areaTerreno.prop('disabled', true).val('');
+                $areaTerrenoGroup.css('opacity', '0.6');
+                $areaTerrenoGroup.append('<small class="text-muted" style="display:block; font-size:11px;">No aplica para este tipo de propiedad</small>');
+            } else {
+                $areaTerreno.prop('disabled', false);
+                $areaTerrenoGroup.css('opacity', '1');
+            }
         }
     };
 
     // Validación
     ReferenciasManager.prototype.validarCompleto = function () {
+        // ── Tipo / subtipo determinan si es un terreno ─────────────────
+        var tipo = this.view.$el.find('#ref-tipoPropiedad').val();
+        var subtipo = this.view.$el.find('#ref-subtipoPropiedad').val();
+        var esTerreno = tipo === 'Terreno' || subtipo === 'Parcela';
+
         // ── Campos requeridos ──────────────────────────────────────────
         var requeridos = [
             { id: '#ref-tipoPropiedad',    label: 'Tipo de propiedad',   tipo: 'select' },
             { id: '#ref-subtipoPropiedad', label: 'Subtipo de propiedad', tipo: 'select' },
             { id: '#ref-valorReferencial', label: 'Valor referencial',    tipo: 'number' },
-            { id: '#ref-areaConstruida',   label: 'Área Construida',      tipo: 'number' },
             { id: '#ref-antiguedad',       label: 'Antigüedad',           tipo: 'number' },
         ];
+        if (!esTerreno) {
+            requeridos.push({ id: '#ref-areaConstruida', label: 'Área Construida', tipo: 'number' });
+        }
 
         for (var i = 0; i < requeridos.length; i++) {
             var campo = requeridos[i];
@@ -128,9 +156,6 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
         }
 
         // ── Área Terreno: requerida si el tipo incluye terreno ─────────
-        var tipo = this.view.$el.find('#ref-tipoPropiedad').val();
-        var subtipo = this.view.$el.find('#ref-subtipoPropiedad').val();
-        var esTerreno = tipo === 'Terreno' || subtipo === 'Parcela';
         if (esTerreno) {
             var areaTerreno = parseFloat(this.view.$el.find('#ref-areaTerreno').val());
             if (isNaN(areaTerreno) || areaTerreno <= 0) {
@@ -234,7 +259,7 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
         var $img     = $preview.find('img');
         var $fotoId  = this.view.$el.find('#ref-foto-id');
 
-        $file.off('change').on('change', function (e) {
+        $file.off('change').on('change', async function (e) {
             var file = e.target.files[0];
             if (!file) return;
 
@@ -243,6 +268,20 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
                 $file.val('');
                 return;
             }
+
+            // Si pesa más de 2MB, se normaliza (redimensiona/comprime)
+            // automáticamente antes de subir.
+            if (file.size > 2 * 1024 * 1024) {
+                try {
+                    Espo.Ui.notify('Optimizando fotografía...');
+                    file = await ImageNormalizer.normalize(file);
+                } catch (err) {
+                    Espo.Ui.error(err.message || 'No fue posible procesar la fotografía.');
+                    $file.val('');
+                    return;
+                }
+            }
+
             if (file.size > 2 * 1024 * 1024) {
                 Espo.Ui.warning('La imagen no debe superar los 2MB');
                 $file.val('');
@@ -342,6 +381,10 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
         };
 
         if (idx !== null) {
+            // Preservar el id original: si no se conserva, el backend trata
+            // esta referencia como una nueva al guardar (borra la fila vieja
+            // y crea una distinta con otro id).
+            ref.id = this.items[tipo][idx].id;
             this.items[tipo][idx] = ref;
         } else {
             this.items[tipo].push(ref);
@@ -350,6 +393,8 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
         this.renderizar(tipo);
         this.view.$el.find('#modalReferencia').modal('hide');
         Espo.Ui.success('Referencia guardada');
+
+        if (this.view.precioManager) this.view.precioManager.recargar();
     };
 
     // Eliminar
@@ -358,6 +403,8 @@ define('ave:views/ave-principal/modules/referencias', [], function () {
         this.items[tipo].splice(idx, 1);
         this.renderizar(tipo);
         Espo.Ui.success('Referencia eliminada');
+
+        if (this.view.precioManager) this.view.precioManager.recargar();
     };
 
     // Método auxiliar para campos en grid

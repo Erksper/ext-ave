@@ -132,7 +132,7 @@ define('ave:views/ave-principal/modules/precio', [], function () {
 
         this.view.$el.find('#ajustePrecio').off('input.precio').on('input.precio', function () {
             var val = parseInt($(this).val()) || 0;
-            val = Math.min(100, Math.max(-100, val));
+            val = Math.min(40, Math.max(0, val));
             $(this).val(val);
             
             var precioBase = parseFloat(self.view.$el.find('#precioOriginal').val()) || 0;

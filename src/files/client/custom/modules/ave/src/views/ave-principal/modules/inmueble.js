@@ -1,4 +1,4 @@
-define('ave:views/ave-principal/modules/inmueble', [], function () {
+define('ave:views/ave-principal/modules/inmueble', ['ave:views/ave-principal/modules/imageNormalizer'], function (ImageNormalizer) {
 
     var InmuebleManager = function (view) {
         this.view = view;
@@ -13,30 +13,50 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
     InmuebleManager.prototype.setup = function () {
         var self = this;
 
-        this.view.$el.find('#inm-m-subtipoPropiedad').off('change.inmueble').on('change.inmueble', function () {
+        this.view.$el.find('#inm-m-subtipoPropiedad, #inm-m-tipoPropiedad').off('change.inmueble').on('change.inmueble', function () {
             self.actualizarEstadoAreaTerreno();
         });
     };
 
     // ─────────────────────────────────────────────────────────────
-    // Manejar habilitación/deshabilitación del área de terreno
+    // Manejar habilitación/deshabilitación de las áreas (terreno / construcción)
     // ─────────────────────────────────────────────────────────────
     InmuebleManager.prototype.actualizarEstadoAreaTerreno = function () {
+        var tipo = this.view.$el.find('#inm-m-tipoPropiedad').val();
         var subtipo = this.view.$el.find('#inm-m-subtipoPropiedad').val();
+
         var $areaTerreno = this.view.$el.find('#inm-m-areaTerreno');
+        var $areaConstruida = this.view.$el.find('#inm-m-areaConstruida');
         var $areaTerrenoGroup = $areaTerreno.closest('.col-md-3');
+        var $areaConstruidaGroup = $areaConstruida.closest('.col-md-3');
 
         var subtiposSinTerreno = ['departamento', 'oficinas', 'local', 'penthouse'];
+        var esTerreno = tipo === 'terreno' || subtipo === 'terreno';
+        var sinTerrenoPorSubtipo = subtiposSinTerreno.indexOf(subtipo) !== -1;
 
         $areaTerrenoGroup.find('small.text-muted').remove();
+        $areaConstruidaGroup.find('small.text-muted').remove();
 
-        if (subtiposSinTerreno.indexOf(subtipo) !== -1) {
-            $areaTerreno.prop('disabled', true).val('');
-            $areaTerrenoGroup.css('opacity', '0.6');
-            $areaTerrenoGroup.append('<small class="text-muted" style="display:block; font-size:11px;">No aplica para este tipo de propiedad</small>');
-        } else {
+        if (esTerreno) {
+            // Es un terreno: se usa el área de terreno, no aplica construcción
             $areaTerreno.prop('disabled', false);
             $areaTerrenoGroup.css('opacity', '1');
+
+            $areaConstruida.prop('disabled', true).val('');
+            $areaConstruidaGroup.css('opacity', '0.6');
+            $areaConstruidaGroup.append('<small class="text-muted" style="display:block; font-size:11px;">No aplica para este tipo de propiedad</small>');
+        } else {
+            $areaConstruida.prop('disabled', false);
+            $areaConstruidaGroup.css('opacity', '1');
+
+            if (sinTerrenoPorSubtipo) {
+                $areaTerreno.prop('disabled', true).val('');
+                $areaTerrenoGroup.css('opacity', '0.6');
+                $areaTerrenoGroup.append('<small class="text-muted" style="display:block; font-size:11px;">No aplica para este tipo de propiedad</small>');
+            } else {
+                $areaTerreno.prop('disabled', false);
+                $areaTerrenoGroup.css('opacity', '1');
+            }
         }
     };
 
@@ -91,7 +111,7 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
         var $img    = $prev.find('img');
         var $fotoId = this.view.$el.find('#inm-m-foto-id');
 
-        $file.off('change').on('change', function (e) {
+        $file.off('change').on('change', async function (e) {
             var file = e.target.files[0];
             if (!file) return;
 
@@ -100,6 +120,18 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
                 $file.val('');
                 return;
             }
+
+            if (file.size > 2 * 1024 * 1024) {
+                try {
+                    Espo.Ui.notify('Optimizando fotografía...');
+                    file = await ImageNormalizer.normalize(file);
+                } catch (err) {
+                    Espo.Ui.error(err.message || 'No fue posible procesar la fotografía.');
+                    $file.val('');
+                    return;
+                }
+            }
+
             if (file.size > 2 * 1024 * 1024) {
                 Espo.Ui.warning('La imagen no debe superar los 2MB');
                 $file.val('');
@@ -369,6 +401,11 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
     InmuebleManager.prototype.guardarDesdeModal = function () {
         var self = this;
 
+        // ── Tipo / subtipo determinan si es un terreno ─────────────────
+        var tipoSel = this.view.$el.find('#inm-m-tipoPropiedad').val();
+        var subtipoSel = this.view.$el.find('#inm-m-subtipoPropiedad').val();
+        var esTerreno = tipoSel === 'terreno' || subtipoSel === 'terreno';
+
         // ── Campos requeridos ──────────────────────────────────────────
         var requeridos = [
             { id: '#inm-m-nombrePropietario', label: 'Nombre del propietario',   tipo: 'text' },
@@ -380,9 +417,11 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
             { id: '#inm-m-urbanizacion',      label: 'Urbanización / Sector',    tipo: 'text' },
             { id: '#inm-m-avenidaCalle',      label: 'Avenida / Calle',          tipo: 'text' },
             { id: '#inm-m-edificioCasa',      label: 'Edificio / C.C. / Casa',   tipo: 'text' },
-            { id: '#inm-m-areaConstruida',    label: 'Área Construida',          tipo: 'number' },
             { id: '#inm-m-antiguedad',        label: 'Antigüedad',               tipo: 'number' },
         ];
+        if (!esTerreno) {
+            requeridos.push({ id: '#inm-m-areaConstruida', label: 'Área Construida', tipo: 'number' });
+        }
 
         for (var i = 0; i < requeridos.length; i++) {
             var campo = requeridos[i];
@@ -396,9 +435,19 @@ define('ave:views/ave-principal/modules/inmueble', [], function () {
             }
         }
 
+        // ── Área Terreno: requerida si es un terreno ────────────────────
+        if (esTerreno) {
+            var areaTerrenoVal = parseFloat(this.view.$el.find('#inm-m-areaTerreno').val());
+            if (isNaN(areaTerrenoVal) || areaTerrenoVal <= 0) {
+                Espo.Ui.warning('Área de Terreno es requerida para este tipo de propiedad');
+                this.view.$el.find('#inm-m-areaTerreno').focus();
+                return;
+            }
+        }
+
         // ── Validaciones numéricas opcionales ─────────────────────────
         var numericos = [
-            { id: '#inm-m-areaConstruida',        label: 'Área Construida',  minVal: 0.01, opcional: false },
+            { id: '#inm-m-areaConstruida',        label: 'Área Construida',  minVal: 0.01, opcional: esTerreno },
             { id: '#inm-m-areaTerreno',           label: 'Área de Terreno',  minVal: 0,    opcional: true },
             { id: '#inm-m-antiguedad',            label: 'Antigüedad',       minVal: 0,    opcional: false },
             { id: '#inm-m-numHabitaciones',       label: 'Habitaciones',     minVal: 0,    opcional: true },

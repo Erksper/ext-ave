@@ -439,7 +439,7 @@
                                         <div class="col-md-4 col-md-offset-4">
                                             <div class="ave-form-group">
                                                 <label class="ave-form-label">Ajuste de Precio (%)</label>
-                                                <input type="number" id="ajustePrecio" class="ave-form-control" step="1" min="-100" max="100" value="0">
+                                                <input type="number" id="ajustePrecio" class="ave-form-control" step="1" min="0" max="40" value="0">
                                                 <small style="color: #666;">Valor negativo = descuento, positivo = incremento</small>
                                             </div>
                                         </div>
