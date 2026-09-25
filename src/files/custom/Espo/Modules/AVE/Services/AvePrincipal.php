@@ -816,9 +816,13 @@ class AvePrincipal extends RecordService
             $html .= '</div>';
         }
 
+        // Plan de Trabajo + cierre (nombre del asesor): se agrupan en una sola
+        // sección para que Dompdf intente mantenerlos juntos en una misma
+        // página, y solo los separe si de plano no caben juntos en una hoja.
+        $html .= '<div class="pdf-section">';
+
         // Plan de Trabajo
         if (!empty($planes) || !empty($canales)) {
-            $html .= '<div class="pdf-section">';
             $html .= '<h3>8. PLAN DE TRABAJO</h3>';
             foreach ($planes as $i => $p) {
                 $html .= '<p><strong>' . ($i + 1) . '. ' . $esc($p['name'] ?? '') . '</strong></p>';
@@ -829,7 +833,6 @@ class AvePrincipal extends RecordService
                 foreach ($canales as $c) { $html .= '<span class="canal-chip">' . $esc($c['name'] ?? '') . '</span> '; }
                 $html .= '</p>';
             }
-            $html .= '</div>';
         }
 
         // Footer
@@ -855,6 +858,8 @@ class AvePrincipal extends RecordService
         $html .= '</div>';
 
         $html .= '<p style="margin-top: 15px; font-size: 10px; color: #999;">Fecha de emisión: ' . $fechaActual . ' ' . $horaActual . '</p>';
+        $html .= '</div>';
+
         $html .= '</div>';
 
         $html .= '</body></html>';
