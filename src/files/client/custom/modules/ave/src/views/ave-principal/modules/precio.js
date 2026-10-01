@@ -38,7 +38,11 @@ define('ave:views/ave-principal/modules/precio', [], function () {
         }
         
         if (this.view.inmuebleManager && this.view.inmuebleManager.inmuebleActual) {
-            this.areaInmueble = parseFloat(this.view.inmuebleManager.inmuebleActual.areaConstruida) || 0;
+            var inm = this.view.inmuebleManager.inmuebleActual;
+            var areaC = parseFloat(inm.areaConstruida) || 0;
+            var areaT = parseFloat(inm.areaTerreno) || 0;
+            // Construcción manda; si no hay (ej. terrenos), se usa el área de terreno.
+            this.areaInmueble = areaC > 0 ? areaC : areaT;
         }
     };
 
@@ -51,7 +55,9 @@ define('ave:views/ave-principal/modules/precio', [], function () {
         this.referenciasPromocion.forEach(function(ref) {
             if (ref.usarCalculo !== false) {
                 var precio = parseFloat(ref.valorReferencial) || 0;
-                var area = parseFloat(ref.areaConstruida) || 0;
+                var areaC = parseFloat(ref.areaConstruida) || 0;
+                var areaT = parseFloat(ref.areaTerreno) || 0;
+                var area = areaC > 0 ? areaC : areaT;
                 if (precio > 0 && area > 0) {
                     var precioM2 = precio / area;
                     sumaPreciosProm += precio;
@@ -69,7 +75,9 @@ define('ave:views/ave-principal/modules/precio', [], function () {
         this.referenciasVendidos.forEach(function(ref) {
             if (ref.usarCalculo !== false) {
                 var precio = parseFloat(ref.valorReferencial) || 0;
-                var area = parseFloat(ref.areaConstruida) || 0;
+                var areaC = parseFloat(ref.areaConstruida) || 0;
+                var areaT = parseFloat(ref.areaTerreno) || 0;
+                var area = areaC > 0 ? areaC : areaT;
                 if (precio > 0 && area > 0) {
                     var precioM2 = precio / area;
                     sumaPreciosVen += precio;

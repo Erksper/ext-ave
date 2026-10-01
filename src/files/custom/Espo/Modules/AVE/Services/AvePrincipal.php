@@ -1137,9 +1137,12 @@ class AvePrincipal extends RecordService
         $todosLosPreciosM2  = [];
 
         foreach ($referencias as $ref) {
-            $precio = $ref->get('valorReferencial');
-            $area   = $ref->get('areaConstruida');
-            $tipo   = $ref->get('tipo');
+            $precio  = $ref->get('valorReferencial');
+            $areaC   = $ref->get('areaConstruida');
+            $areaT   = $ref->get('areaTerreno');
+            // Construcción manda; si no hay (ej. terrenos), se usa el área de terreno.
+            $area    = ($areaC && $areaC > 0) ? $areaC : $areaT;
+            $tipo    = $ref->get('tipo');
 
             if ($precio && $area && $area > 0) {
                 $todosLosPreciosM2[] = $precio / $area;
@@ -1169,7 +1172,12 @@ class AvePrincipal extends RecordService
         $areaInmueble = 0;
         if ($entity->get('aveInmuebleId')) {
             $inm = $em->getEntity('AveInmueble', $entity->get('aveInmuebleId'));
-            if ($inm) $areaInmueble = $inm->get('areaConstruida') ?? 0;
+            if ($inm) {
+                $areaCInm = $inm->get('areaConstruida') ?? 0;
+                $areaTInm = $inm->get('areaTerreno') ?? 0;
+                // Construcción manda; si no hay (ej. terrenos), se usa el área de terreno.
+                $areaInmueble = ($areaCInm && $areaCInm > 0) ? $areaCInm : $areaTInm;
+            }
         }
 
         $precioMaximo     = $valorMaxM2 * $areaInmueble;
